@@ -44,10 +44,14 @@ def add_res_columns(df_res):
     return df_res
 
 
-def res_to_stats(df_res):
+def res_to_dbd(df_res):
     """
     Takes a dataFrame (with parsed dates and LOS column) containing a hotel's reservations and
-     returns a DataFrame containing nightly hotel room sales.
+    returns a DataFrame containing nightly hotel room sales.
+
+    Our data is made up of reservations containing 'Arrival Date' and 'Length of Stay'.
+    This function is used to determine how many rooms were sold on a given night, accounting for
+    guests that arrived previously and are staying multiple nights.
     """
     mask = df_res["IsCanceled"] == 0
     df_dates = df_res[mask]
@@ -69,8 +73,9 @@ def res_to_stats(df_res):
 
         # start on the arrival date and move back
         # to capture ALL reservations touching 'date' (and not just those that arrive on 'date')
-        for i in range(max_los + 1):
+        for _ in range(max_los):
 
+            #
             date_tminus = date - pd.DateOffset(tminus)
 
             date_tminus_string = datetime.datetime.strftime(
@@ -116,25 +121,59 @@ def res_to_stats(df_res):
     return pd.DataFrame(nightly_stats).transpose()
 
 
-def calculate_stats(stats_df):
+def add_dbd_columns(dbd_df, capacity):
     """
-    Adds several columns to stats_df, including:
+    Adds several columns to dbd_df, including:
+        - 'Occ' (occupancy)
+        - 'RevPAR' (revenue per available room)
         - 'ADR' (by segment)
         - 'DOW' (day-of-week)
         - 'WD' (weekday - binary)
         - 'WE' (weekend - binary)
     """
+    # add Occ & RevPAR columns
+    dbd_df["Occ"] = round(dbd_df["RoomsSold"] / capacity, 2)
+    dbd_df["RevPAR"] = round(dbd_df["RoomRev"] / capacity, 2)
 
-    stats_df["ADR"] = round(stats_df.RoomRev / stats_df.RoomsSold, 2)
-    stats_df["Trn_ADR"] = round(stats_df.Trn_RoomRev / stats_df.Trn_RoomsSold, 2)
-    stats_df["TrnP_ADR"] = round(stats_df.TrnP_RoomRev / stats_df.TrnP_RoomsSold, 2)
-    stats_df["Grp_ADR"] = round(stats_df.Grp_RoomRev / stats_df.Grp_RoomsSold, 2)
-    stats_df["Cnt_ADR"] = round(stats_df.Cnt_RoomRev / stats_df.Cnt_RoomsSold, 2)
+    # Add ADR by segment
+    dbd_df["ADR"] = round(dbd_df.RoomRev / dbd_df.RoomsSold, 2)
+    dbd_df["Trn_ADR"] = round(dbd_df.Trn_RoomRev / dbd_df.Trn_RoomsSold, 2)
+    dbd_df["TrnP_ADR"] = round(dbd_df.TrnP_RoomRev / dbd_df.TrnP_RoomsSold, 2)
+    dbd_df["Grp_ADR"] = round(dbd_df.Grp_RoomRev / dbd_df.Grp_RoomsSold, 2)
+    dbd_df["Cnt_ADR"] = round(dbd_df.Cnt_RoomRev / dbd_df.Cnt_RoomsSold, 2)
 
-    dow = pd.to_datetime(stats_df.index, format="%Y-%m-%d")
+    dow = pd.to_datetime(dbd_df.index, format="%Y-%m-%d")
     dow = dow.strftime("%a")
-    stats_df.insert(0, "DOW", dow)
-    stats_df["WE"] = (stats_df.DOW == "Fri") | (stats_df.DOW == "Sat")
-    stats_df["WD"] = stats_df.WE == False
+    dbd_df.insert(0, "DOW", dow)
+    dbd_df["WE"] = (dbd_df.DOW == "Fri") | (dbd_df.DOW == "Sat")
+    dbd_df["WD"] = dbd_df.WE == False
 
-    return stats_df
+    return dbd_df
+
+
+def generate_hotel_dfs(res_filepath, capacity=None):
+    """
+    Takes in a hotel's raw reservations data (CSV) and capacity & returns two
+    formatted DataFrames using the above functions:
+        - df_res: cleaned reservations DataFrame
+        - df_dbd: day-by-day hotel statistics, by Customer Type
+
+    _______
+    Parameters:
+        - res_filepath (str, required): relative filepath to hotel's reservation data (CSV)
+        - capacity (int, optional): the capacity of the hotel for Occ & RevPAR calculations
+            - if omitted, capacity will calculated based on the maximum number of rooms sold on any
+              day in the timespan provided
+    """
+    raw_df = pd.read_csv(res_filepath)
+    df_res = parse_dates(raw_df)
+    df_res = add_res_columns(df_res)
+
+    df_dbd = res_to_dbd(df_res)
+
+    if capacity is None:
+        capacity = df_dbd.RoomsSold.max()
+
+    df_dbd = add_dbd_columns(df_dbd, capacity=capacity)
+
+    return df_res, df_dbd
