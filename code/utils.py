@@ -33,6 +33,17 @@ def parse_dates(df_res):
     return df_res
 
 
+def add_res_columns(df_res):
+    """
+    Adds several columns to df_res, including:
+        - ResNum: unique ID for each booking
+    """
+
+    res_nums = list(range(len(df_res)))
+    df_res.insert(0, "ResNum", res_nums)
+    return df_res
+
+
 def res_to_stats(df_res):
     """
     Takes a dataFrame (with parsed dates and LOS column) containing a hotel's reservations and

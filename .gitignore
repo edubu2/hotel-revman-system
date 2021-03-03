@@ -1,2 +1,5 @@
 .DS_Store
 data/
+.vscode/
+code/__pycache__/
+code/.ipynb_checkpoints
