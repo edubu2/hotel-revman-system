@@ -114,3 +114,27 @@ def res_to_stats(df_res):
         date += delta
 
     return pd.DataFrame(nightly_stats).transpose()
+
+
+def calculate_stats(stats_df):
+    """
+    Adds several columns to stats_df, including:
+        - 'ADR' (by segment)
+        - 'DOW' (day-of-week)
+        - 'WD' (weekday - binary)
+        - 'WE' (weekend - binary)
+    """
+
+    stats_df["ADR"] = round(stats_df.RoomRev / stats_df.RoomsSold, 2)
+    stats_df["Trn_ADR"] = round(stats_df.Trn_RoomRev / stats_df.Trn_RoomsSold, 2)
+    stats_df["TrnP_ADR"] = round(stats_df.TrnP_RoomRev / stats_df.TrnP_RoomsSold, 2)
+    stats_df["Grp_ADR"] = round(stats_df.Grp_RoomRev / stats_df.Grp_RoomsSold, 2)
+    stats_df["Cnt_ADR"] = round(stats_df.Cnt_RoomRev / stats_df.Cnt_RoomsSold, 2)
+
+    dow = pd.to_datetime(stats_df.index, format="%Y-%m-%d")
+    dow = dow.strftime("%a")
+    stats_df.insert(0, "DOW", dow)
+    stats_df["WE"] = (stats_df.DOW == "Fri") | (stats_df.DOW == "Sat")
+    stats_df["WD"] = stats_df.WE == False
+
+    return stats_df
