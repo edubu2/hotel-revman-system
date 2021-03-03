@@ -147,6 +147,30 @@ def add_dbd_columns(dbd_df, capacity):
     dbd_df.insert(0, "DOW", dow)
     dbd_df["WE"] = (dbd_df.DOW == "Fri") | (dbd_df.DOW == "Sat")
     dbd_df["WD"] = dbd_df.WE == False
+    col_order = [
+        "DOW",
+        "Occ",
+        "RoomsSold",
+        "ADR",
+        "RoomRev",
+        "RevPAR",
+        "Trn_RoomsSold",
+        "Trn_ADR",
+        "Trn_RoomRev",
+        "Grp_RoomsSold",
+        "Grp_ADR",
+        "Grp_RoomRev",
+        "TrnP_RoomsSold",
+        "TrnP_RoomRev",
+        "Cnt_RoomsSold",
+        "Cnt_ADR",
+        "Cnt_RoomRev",
+        "TrnP_ADR",
+        "WE",
+        "WD",
+    ]
+    dbd_df = dbd_df[col_order]
+    dbd_df.fillna(0, inplace=True)
 
     return dbd_df
 
