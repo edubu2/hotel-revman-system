@@ -57,30 +57,60 @@ def res_to_stats(df_res):
     delta = datetime.timedelta(days=1)
     max_los = int(df_dates["LOS"].max())
 
-    rooms_sold = defaultdict(int)
+    nightly_stats = {}
 
     while date <= end_date:
 
         date_string = datetime.datetime.strftime(date, format="%Y-%m-%d")
         tminus = 0
 
+        # initialize date dict, which will go into nightly_stats as {'date': {'stat': 'val', 'stat', 'val'}}
+        date_stats = defaultdict(int)
+
         # start on the arrival date and move back
         # to capture ALL reservations touching 'date' (and not just those that arrive on 'date')
         for i in range(max_los + 1):
 
-            date_tminus = datetime.datetime.strftime(
-                date - pd.DateOffset(tminus), format="%Y-%m-%d"
+            date_tminus = date - pd.DateOffset(tminus)
+
+            date_tminus_string = datetime.datetime.strftime(
+                date_tminus, format="%Y-%m-%d"
             )
+
             mask = (
-                (df_dates.ArrivalDate == date_tminus)
+                (df_dates.ArrivalDate == date_tminus_string)
                 & (df_dates.LOS >= 1 + tminus)
                 & (df_dates.IsCanceled == 0)
             )
 
-            # add rooms_sold
-            rooms_sold[date_string] += len(df_dates[mask])
+            date_stats["RoomsSold"] += len(df_dates[mask])
+            date_stats["RoomRev"] += df_dates[mask].ADR.sum()
+
+            tmp = (
+                df_dates[mask][["ResNum", "CustomerType", "ADR"]]
+                .groupby("CustomerType")
+                .agg({"ResNum": "count", "ADR": "sum"})
+                .rename(columns={"ResNum": "RS", "ADR": "Rev"})
+            )
+
+            c_types = ["Transient", "Transient-Party", "Group", "Contract"]
+
+            if "Transient" in list(tmp.index):
+                date_stats["Trn_RoomsSold"] += tmp.loc["Transient", "RS"]
+                date_stats["Trn_RoomRev"] += tmp.loc["Transient", "Rev"]
+            if "Transient-Party" in list(tmp.index):
+                date_stats["TrnP_RoomsSold"] += tmp.loc["Transient-Party", "RS"]
+                date_stats["TrnP_RoomRev"] += tmp.loc["Transient-Party", "Rev"]
+            if "Group" in list(tmp.index):
+                date_stats["Grp_RoomsSold"] += tmp.loc["Group", "RS"]
+                date_stats["Grp_RoomRev"] += tmp.loc["Group", "Rev"]
+            if "Contract" in list(tmp.index):
+                date_stats["Cnt_RoomsSold"] += tmp.loc["Contract", "RS"]
+                date_stats["Cnt_RoomRev"] += tmp.loc["Contract", "Rev"]
+
             tminus += 1
 
+        nightly_stats[date_string] = dict(date_stats)
         date += delta
 
-    return pd.DataFrame(rooms_sold, index=["RoomsSold"]).transpose()
+    return pd.DataFrame(nightly_stats).transpose()
