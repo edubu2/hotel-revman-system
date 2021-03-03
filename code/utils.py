@@ -64,8 +64,10 @@ def res_to_stats(df_res):
                 & (df_dates.IsCanceled == 0)
             )
 
+            # add rooms_sold
             rooms_sold[date_string] += len(df_dates[mask])
             tminus += 1
 
         date += delta
-    return pd.DataFrame(rooms_sold, index=["RoomsSold"])
+
+    return pd.DataFrame(rooms_sold, index=["RoomsSold"]).transpose()
