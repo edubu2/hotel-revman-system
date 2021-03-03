@@ -68,7 +68,9 @@ def res_to_stats(df_res):
         # to capture ALL reservations touching 'date' (and not just those that arrive on 'date')
         for i in range(max_los + 1):
 
-            date_tminus = date - pd.DateOffset(tminus)
+            date_tminus = datetime.datetime.strftime(
+                date - pd.DateOffset(tminus), format="%Y-%m-%d"
+            )
             mask = (
                 (df_dates.ArrivalDate == date_tminus)
                 & (df_dates.LOS >= 1 + tminus)
