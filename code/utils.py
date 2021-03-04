@@ -3,6 +3,7 @@ import numpy as np
 
 from collections import defaultdict
 import datetime
+from dateutil.relativedelta import *
 
 
 def parse_dates(df_res):
@@ -179,32 +180,33 @@ def res_to_dbd(df_res):
     return pd.DataFrame(nightly_stats).transpose()
 
 
-def add_dbd_columns(dbd_df, capacity):
+def add_dbd_columns(df_dbd, capacity):
     """
-    Adds several columns to dbd_df, including:
+    Adds several columns to df_dbd, including:
         - 'Occ' (occupancy)
         - 'RevPAR' (revenue per available room)
         - 'ADR' (by segment)
         - 'DOW' (day-of-week)
         - 'WD' (weekday - binary)
         - 'WE' (weekend - binary)
+        - 'STLY_Date' (datetime "%Y-%m-%d")
     """
-    # add Occ & RevPAR columns
-    dbd_df["Occ"] = round(dbd_df["RoomsSold"] / capacity, 2)
-    dbd_df["RevPAR"] = round(dbd_df["RoomRev"] / capacity, 2)
+    # add Occ & RevPAR columns'
+    df_dbd["Occ"] = round(df_dbd["RoomsSold"] / capacity, 2)
+    df_dbd["RevPAR"] = round(df_dbd["RoomRev"] / capacity, 2)
 
     # Add ADR by segment
-    dbd_df["ADR"] = round(dbd_df.RoomRev / dbd_df.RoomsSold, 2)
-    dbd_df["Trn_ADR"] = round(dbd_df.Trn_RoomRev / dbd_df.Trn_RoomsSold, 2)
-    dbd_df["TrnP_ADR"] = round(dbd_df.TrnP_RoomRev / dbd_df.TrnP_RoomsSold, 2)
-    dbd_df["Grp_ADR"] = round(dbd_df.Grp_RoomRev / dbd_df.Grp_RoomsSold, 2)
-    dbd_df["Cnt_ADR"] = round(dbd_df.Cnt_RoomRev / dbd_df.Cnt_RoomsSold, 2)
+    df_dbd["ADR"] = round(df_dbd.RoomRev / df_dbd.RoomsSold, 2)
+    df_dbd["Trn_ADR"] = round(df_dbd.Trn_RoomRev / df_dbd.Trn_RoomsSold, 2)
+    df_dbd["TrnP_ADR"] = round(df_dbd.TrnP_RoomRev / df_dbd.TrnP_RoomsSold, 2)
+    df_dbd["Grp_ADR"] = round(df_dbd.Grp_RoomRev / df_dbd.Grp_RoomsSold, 2)
+    df_dbd["Cnt_ADR"] = round(df_dbd.Cnt_RoomRev / df_dbd.Cnt_RoomsSold, 2)
 
-    dow = pd.to_datetime(dbd_df.index, format="%Y-%m-%d")
+    dow = pd.to_datetime(df_dbd.index, format="%Y-%m-%d")
     dow = dow.strftime("%a")
-    dbd_df.insert(0, "DOW", dow)
-    dbd_df["WE"] = (dbd_df.DOW == "Fri") | (dbd_df.DOW == "Sat")
-    dbd_df["WD"] = dbd_df.WE == False
+    df_dbd.insert(0, "DOW", dow)
+    df_dbd["WE"] = (df_dbd.DOW == "Fri") | (df_dbd.DOW == "Sat")
+    df_dbd["WD"] = df_dbd.WE == False
     col_order = [
         "DOW",
         "Occ",
@@ -227,10 +229,17 @@ def add_dbd_columns(dbd_df, capacity):
         "WE",
         "WD",
     ]
-    dbd_df = dbd_df[col_order]
-    dbd_df.fillna(0, inplace=True)
+    df_dbd = df_dbd[col_order].copy()
 
-    return dbd_df
+    # add STLY date
+    stly_lambda = lambda x: pd.to_datetime(x) + relativedelta(
+        years=-1, weekday=pd.to_datetime(x).weekday()
+    )
+    df_dbd["STLY_Date"] = df_dbd.index.map(stly_lambda)
+
+    df_dbd.fillna(0, inplace=True)
+
+    return df_dbd
 
 
 def generate_hotel_dfs(res_filepath, capacity=None):
