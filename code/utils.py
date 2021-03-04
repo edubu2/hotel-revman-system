@@ -8,6 +8,7 @@ import datetime
 def parse_dates(df_res):
     """
     Adds datetime & length-of-stay (LOS) columns to the DataFrame.
+    Also replaces 'NULL' values with np.NaN
     _____________
     Takes:
         - df_res (required, DataFrame): raw hotel reservation data.
@@ -17,6 +18,8 @@ def parse_dates(df_res):
         - New column: LOS
         - Changed column: 'StatusDate'
     """
+    df_res.loc[0, "Agent"]
+    df_res = df_res.replace("       NULL", np.NaN)
 
     df_res["ArrivalDate"] = pd.to_datetime(
         df_res.ArrivalDateYear.astype(str)
@@ -37,10 +40,50 @@ def add_res_columns(df_res):
     """
     Adds several columns to df_res, including:
         - ResNum: unique ID for each booking
+        - Dummy columns:
+            - CustomerType (is_grp, is_trn, is_trnP, contract)
+            - ReservationStatus (Check-Out, No-Show, Canceled)
+            - MarketSegment(Corp/Direct/Group/OfflineTA/OnlineTA)
+            - DistributionChannel (Direct, TA/TO)
+            - DepositType (Refundable, Non-Refundable)
+            - AgencyBooking (True/False)
+            - CompanyListed (True/False)
+
     """
 
     res_nums = list(range(len(df_res)))
     df_res.insert(0, "ResNum", res_nums)
+
+    # one-hot-encode CustomerType
+    df_res[["is_grp", "is_trn", "is_trnP"]] = pd.get_dummies(
+        df_res.CustomerType, drop_first=True
+    )
+
+    # one-hot-encode ResStatus (IsCanceled already included, so only keeping no-show (checkout can be inferred))
+    df_res[["CheckOut", "No-Show"]] = pd.get_dummies(
+        df_res.ReservationStatus, drop_first=True
+    )
+    df_res.drop(columns=["CheckOut"], inplace=True)
+
+    # one-hot-encode MarketSegment
+    df_res[
+        ["MS_Corporate", "MS_Direct", "MS_Group", "MS_OfflineTA", "MS_OnlineTA"]
+    ] = pd.get_dummies(df_res.MarketSegment, drop_first=True)
+
+    # one-hot-encode DistributionChannel
+    df_res[["DC_Direct", "TA_TO"]] = pd.get_dummies(
+        df_res.DistributionChannel, drop_first=True
+    ).drop(columns="Undefined")
+
+    # one-hot-encode DepositType
+    df_res[["DT_NonRefundable", "DT_Refundable"]] = pd.get_dummies(
+        df_res.DepositType, drop_first=True
+    )
+
+    # Boolean columns (AgencyBooking & CompanyListed)
+    df_res["AgencyBooking"] = ~df_res["Agent"].isnull()
+    df_res["CompanyListed"] = ~df_res["Company"].isnull()
+
     return df_res
 
 
@@ -161,11 +204,11 @@ def add_dbd_columns(dbd_df, capacity):
         "Grp_ADR",
         "Grp_RoomRev",
         "TrnP_RoomsSold",
+        "TrnP_ADR",
         "TrnP_RoomRev",
         "Cnt_RoomsSold",
         "Cnt_ADR",
         "Cnt_RoomRev",
-        "TrnP_ADR",
         "WE",
         "WD",
     ]
