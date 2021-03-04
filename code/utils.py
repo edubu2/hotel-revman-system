@@ -65,10 +65,9 @@ def add_res_columns(df_res):
     )
     df_res.drop(columns=["CheckOut"], inplace=True)
 
-    # one-hot-encode MarketSegment
-    df_res[
-        ["MS_Corporate", "MS_Direct", "MS_Group", "MS_OfflineTA", "MS_OnlineTA"]
-    ] = pd.get_dummies(df_res.MarketSegment, drop_first=True)
+    # one-hot-encode MarketSegment (done this way since h1 & h2 have different MktSegs
+    mkt_seg_cols = list(pd.get_dummies(df_res.MarketSegment, drop_first=True).columns)
+    df_res[mkt_seg_cols] = pd.get_dummies(df_res.MarketSegment, drop_first=True)
 
     # one-hot-encode DistributionChannel
     df_res[["DC_Direct", "TA_TO"]] = pd.get_dummies(
