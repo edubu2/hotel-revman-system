@@ -69,10 +69,13 @@ def add_res_columns(df_res):
     mkt_seg_cols = list(pd.get_dummies(df_res.MarketSegment, drop_first=True).columns)
     df_res[mkt_seg_cols] = pd.get_dummies(df_res.MarketSegment, drop_first=True)
 
-    # one-hot-encode DistributionChannel
-    df_res[["DC_Direct", "TA_TO"]] = pd.get_dummies(
+    # one-hot-encode DistributionChannel (same situation as MktSeg comment above)
+    dist_channel_cols = list(
+        pd.get_dummies(df_res.DistributionChannel, drop_first=True).columns
+    )
+    df_res[dist_channel_cols] = pd.get_dummies(
         df_res.DistributionChannel, drop_first=True
-    ).drop(columns="Undefined")
+    )
 
     # one-hot-encode DepositType
     df_res[["DT_NonRefundable", "DT_Refundable"]] = pd.get_dummies(
@@ -82,6 +85,19 @@ def add_res_columns(df_res):
     # Boolean columns (AgencyBooking & CompanyListed)
     df_res["AgencyBooking"] = ~df_res["Agent"].isnull()
     df_res["CompanyListed"] = ~df_res["Company"].isnull()
+
+    # Fix column names
+    ohe_col_names = {
+        "Complementary": "MS_Comp",
+        "Corporate": "MS_Corp",
+        "Direct": "MS_Direct",
+        "Groups": "MS_Grps",
+        "Offline TA/TO": "MS_Offline_TA",
+        "Online TA": "MS_Online_TA",
+        "Undefined": np.NaN,
+        "TA/TO": "DC_TA_TO",
+    }
+    df_res.rename(columns=ohe_col_names, errors="ignore")
 
     return df_res
 
