@@ -41,26 +41,31 @@ def add_res_columns(df_res):
     """
     Adds several columns to df_res, including:
         - ResNum: unique ID for each booking
-        - Previous Bookings: Prev. Bookings not cxl'd + prev. cxls
+        - PreviousBookings: Prev. Bookings not cxl'd + prev. cxls
+        - NumPeople: Adults + children + babies
         - Dummy columns (one-hot encoded for colinearity):
             - CustomerType (is_grp, is_trn, is_trnP, contract)
             - ReservationStatus (Check-Out, No-Show, Canceled)
             - MarketSegment(Corp/Direct/Group/OfflineTA/OnlineTA)
             - DistributionChannel (Direct, TA/TO)
+            - Meal (Bed&Breakfast, Halfboard (breakfast + 1 meal), FB (full board))
             - DepositType (Refundable, Non-Refundable)
             - Country (3-digit ISO 3166 Country Codes, top 10 + 'other')
             - AgencyBooking (True/False)
             - CompanyListed (True/False)
 
     """
-    # Add unique reservation ID num
+    # add unique reservation ID num
     res_nums = list(range(len(df_res)))
     df_res.insert(0, "ResNum", res_nums)
 
-    # Add 'PreviousBookings'
+    # add 'PreviousBookings'
     df_res["PreviousBookings"] = (
         df_res.PreviousBookingsNotCanceled + df_res.PreviousCancellations
     )
+
+    # add NumPeople
+    df_res["NumPeople"] = df_res.Adults + df_res.Children + df_res.Babies
 
     # one-hot-encode CustomerType
     df_res[["CT_is_grp", "CT_is_trn", "CT_is_trnP"]] = pd.get_dummies(
@@ -86,6 +91,11 @@ def add_res_columns(df_res):
     df_res[dist_channel_cols] = pd.get_dummies(
         df_res.DistributionChannel, drop_first=True
     )
+
+    # one-hot-encode meal (same situation as above)
+    meal_cols = list(pd.get_dummies(df_res.Meal, drop_first=True).columns)
+    meal_cols = ["MEAL_" + ms_name for ms_name in meal_cols]
+    df_res[meal_cols] = pd.get_dummies(df_res.Meal, drop_first=True)
 
     # one-hot-encode Country
     top_ten_countries = list(
