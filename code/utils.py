@@ -94,7 +94,7 @@ def add_res_columns(df_res):
 
     # one-hot-encode meal (same situation as above)
     meal_cols = list(pd.get_dummies(df_res.Meal, drop_first=True).columns)
-    meal_cols = ["MEAL_" + ms_name for ms_name in meal_cols]
+    meal_cols = ["MEAL_" + ms_name.strip() for ms_name in meal_cols]
     df_res[meal_cols] = pd.get_dummies(df_res.Meal, drop_first=True)
 
     # one-hot-encode Country
