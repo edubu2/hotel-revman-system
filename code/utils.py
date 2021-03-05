@@ -41,12 +41,13 @@ def add_res_columns(df_res):
     """
     Adds several columns to df_res, including:
         - ResNum: unique ID for each booking
-        - Dummy columns:
+        - Dummy columns (one-hot encoded for colinearity):
             - CustomerType (is_grp, is_trn, is_trnP, contract)
             - ReservationStatus (Check-Out, No-Show, Canceled)
             - MarketSegment(Corp/Direct/Group/OfflineTA/OnlineTA)
             - DistributionChannel (Direct, TA/TO)
             - DepositType (Refundable, Non-Refundable)
+            - Country (3-digit ISO 3166 Country Codes, top 10 + 'other')
             - AgencyBooking (True/False)
             - CompanyListed (True/False)
 
@@ -56,27 +57,39 @@ def add_res_columns(df_res):
     df_res.insert(0, "ResNum", res_nums)
 
     # one-hot-encode CustomerType
-    df_res[["is_grp", "is_trn", "is_trnP"]] = pd.get_dummies(
+    df_res[["CT_is_grp", "CT_is_trn", "CT_is_trnP"]] = pd.get_dummies(
         df_res.CustomerType, drop_first=True
     )
 
     # one-hot-encode ResStatus (IsCanceled already included, so only keeping no-show (checkout can be inferred))
-    df_res[["CheckOut", "No-Show"]] = pd.get_dummies(
+    df_res[["RS_CheckOut", "RS_No-Show"]] = pd.get_dummies(
         df_res.ReservationStatus, drop_first=True
     )
-    df_res.drop(columns=["CheckOut"], inplace=True)
+    df_res.drop(columns=["RS_CheckOut"], inplace=True)
 
     # one-hot-encode MarketSegment (done this way since h1 & h2 have different MktSegs
     mkt_seg_cols = list(pd.get_dummies(df_res.MarketSegment, drop_first=True).columns)
+    mkt_seg_cols = ["MS_" + ms_name for ms_name in mkt_seg_cols]
     df_res[mkt_seg_cols] = pd.get_dummies(df_res.MarketSegment, drop_first=True)
 
     # one-hot-encode DistributionChannel (same situation as MktSeg comment above)
     dist_channel_cols = list(
         pd.get_dummies(df_res.DistributionChannel, drop_first=True).columns
     )
+    dist_channel_cols = ["DC_" + channel_name for channel_name in dist_channel_cols]
     df_res[dist_channel_cols] = pd.get_dummies(
         df_res.DistributionChannel, drop_first=True
     )
+
+    # one-hot-encode Country
+    top_ten_countries = list(
+        df_res.Country.value_counts().sort_values(ascending=False).head(10).index
+    )
+
+    for country in top_ten_countries:
+        df_res["FROM_" + country] = df_res.Country == country
+
+    df_res["FROM_other"] = ~df_res.Country.isin(top_ten_countries)
 
     # one-hot-encode DepositType
     df_res[["DT_NonRefundable", "DT_Refundable"]] = pd.get_dummies(
@@ -86,19 +99,6 @@ def add_res_columns(df_res):
     # Boolean columns (AgencyBooking & CompanyListed)
     df_res["AgencyBooking"] = ~df_res["Agent"].isnull()
     df_res["CompanyListed"] = ~df_res["Company"].isnull()
-
-    # Fix column names
-    ohe_col_names = {
-        "Complementary": "MS_Comp",
-        "Corporate": "MS_Corp",
-        "Direct": "MS_Direct",
-        "Groups": "MS_Grps",
-        "Offline TA/TO": "MS_Offline_TA",
-        "Online TA": "MS_Online_TA",
-        "Undefined": np.NaN,
-        "TA/TO": "DC_TA_TO",
-    }
-    df_res.rename(columns=ohe_col_names, errors="ignore")
 
     return df_res
 
