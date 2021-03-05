@@ -41,6 +41,7 @@ def add_res_columns(df_res):
     """
     Adds several columns to df_res, including:
         - ResNum: unique ID for each booking
+        - Previous Bookings: Prev. Bookings not cxl'd + prev. cxls
         - Dummy columns (one-hot encoded for colinearity):
             - CustomerType (is_grp, is_trn, is_trnP, contract)
             - ReservationStatus (Check-Out, No-Show, Canceled)
@@ -52,9 +53,14 @@ def add_res_columns(df_res):
             - CompanyListed (True/False)
 
     """
-
+    # Add unique reservation ID num
     res_nums = list(range(len(df_res)))
     df_res.insert(0, "ResNum", res_nums)
+
+    # Add 'PreviousBookings'
+    df_res["PreviousBookings"] = (
+        df_res.PreviousBookingsNotCanceled + df_res.PreviousCancellations
+    )
 
     # one-hot-encode CustomerType
     df_res[["CT_is_grp", "CT_is_trn", "CT_is_trnP"]] = pd.get_dummies(
