@@ -71,6 +71,7 @@ def add_res_columns(df_res):
     )
 
     # add NumPeople
+    df_res["Children"] = df_res["Children"].fillna(0)
     df_res["NumPeople"] = df_res.Adults + df_res.Children + df_res.Babies
 
     # one-hot-encode CustomerType
