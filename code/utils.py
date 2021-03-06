@@ -42,6 +42,7 @@ def add_res_columns(df_res):
     Adds several columns to df_res, including:
         - ResNum: unique ID for each booking
         - PreviousBookings: Prev. Bookings not cxl'd + prev. cxls
+        - ResMadeDate: Date reservation was made
         - NumPeople: Adults + children + babies
         - Dummy columns (one-hot encoded for colinearity):
             - CustomerType (is_grp, is_trn, is_trnP, contract)
@@ -62,6 +63,11 @@ def add_res_columns(df_res):
     # add 'PreviousBookings'
     df_res["PreviousBookings"] = (
         df_res.PreviousBookingsNotCanceled + df_res.PreviousCancellations
+    )
+
+    # add ResMadeDate
+    df_res["ResMadeDate"] = df_res.ArrivalDate - df_res["LeadTime"].map(
+        datetime.timedelta
     )
 
     # add NumPeople
