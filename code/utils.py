@@ -16,7 +16,8 @@ def parse_dates(df_res):
 
     Returns: df_res (DataFrame)
         - New column: 'ArrivalDate'
-        - New column: LOS
+        - New column: 'LOS'
+        - New column: 'CheckoutDate'
         - Changed column: 'StatusDate'
     """
     df_res.loc[0, "Agent"]
@@ -33,6 +34,10 @@ def parse_dates(df_res):
     df_res["ReservationStatusDate"] = pd.to_datetime(df_res.ReservationStatusDate)
 
     df_res["LOS"] = (df_res.StaysInWeekendNights + df_res.StaysInWeekNights).astype(int)
+
+    # add checkout date
+    checkout_lam = lambda row: row["ArrivalDate"] + pd.DateOffset(row["LOS"])
+    df_res["CheckoutDate"] = df_res.apply(checkout_lam, axis=1)
 
     return df_res
 
