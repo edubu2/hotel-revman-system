@@ -137,7 +137,7 @@ def add_res_columns(df_res):
     return df_res
 
 
-def res_to_dbd(df_res):
+def res_to_dbd(df_res, first_date="2015-07-01"):
     """
     Takes a dataFrame (with parsed dates and LOS column) containing a hotel's reservations and
     returns a DataFrame containing nightly hotel room sales.
@@ -147,9 +147,9 @@ def res_to_dbd(df_res):
     guests that arrived previously and are staying multiple nights.
     """
     mask = df_res["IsCanceled"] == 0
-    df_dates = df_res[mask]
+    df_dates = df_res[mask].copy()
 
-    date = datetime.date(2015, 7, 1)
+    date = pd.to_datetime(first_date, format="%Y-%m-%d")
     end_date = datetime.date(2017, 8, 31)
     delta = datetime.timedelta(days=1)
     max_los = int(df_dates["LOS"].max())
@@ -224,6 +224,11 @@ def add_dbd_columns(df_dbd, capacity):
         - 'WD' (weekday - binary)
         - 'WE' (weekend - binary)
         - 'STLY_Date' (datetime "%Y-%m-%d")
+
+    _____
+    Parameters:
+        - df_dbd: day-by-day hotel DF
+        - capacity (int, required): number of rooms in the hotel
     """
     # add Occ & RevPAR columns'
     df_dbd["Occ"] = round(df_dbd["RoomsSold"] / capacity, 2)
@@ -415,7 +420,9 @@ def get_fbeta_score(pred_probas, beta, threshold, y_test):
 def optimize_prob_threshold(
     model, X_test, y_test, beta=0.5, thresh_start=0.4, thresh_stop=0.95
 ):
-
+    """
+    Takes a trained cancellation XGBoost model and returns X_test, with predictions column (will_cancel)
+    """
     pred_probas = model.predict_proba(X_test)
 
     thresholds = np.arange(thresh_start, thresh_stop, 0.002)
@@ -441,22 +448,10 @@ def optimize_prob_threshold(
         f"Optimal probability threshold (to maximize F-{beta}): {best_thresh}\nF-{beta} Score: {best_fbeta}\n"
     )
 
-    return df_preds
+    return best_thresh
 
 
 def model_cancellations(df_res, as_of_date, hotel_num):
-    """
-    Generates cancellation predictions and returns future-looking reservations dataFrame.
-
-    The resulting DataFrame contains all future (and in-house) reservations touching as_of_date and beyond.
-
-    _____
-    Parameters:
-        - df_res (pd.DataFrame, required): cleaned reservations DataFrame
-        - as_of_date (str "%Y-%m-%d", required): date of simulation
-        - hotel_num (int, required):
-    """
-
     assert hotel_num in (1, 2), "Invalid hotel_num (must be integer, 1 or 2)."
 
     if hotel_num == 1:
@@ -487,8 +482,37 @@ def model_cancellations(df_res, as_of_date, hotel_num):
     )
     model.fit(X_train, y_train)
 
-    df_preds = optimize_prob_threshold(model, X_test=X_test, y_test=y_test)
+    return X_test, y_test, model
 
-    X_test["will_cancel"] = df_preds["prediction"]
 
-    return X_test
+def predict_cancellations(df_res, as_of_date, hotel_num):
+    """
+    Generates cancellation predictions and returns future-looking reservations dataFrame.
+
+    The resulting DataFrame contains all future (and in-house) reservations touching as_of_date and beyond.
+
+    _____
+    Parameters:
+        - df_res (pd.DataFrame, required): cleaned reservations DataFrame
+        - as_of_date (str "%Y-%m-%d", required): date of simulation
+        - hotel_num (int, required):
+    """
+
+    # EW - FIX ISSUE: I AM USING SPLIT_RESERVATIONS TWICE, MAYBE?
+    X_test, y_test, model = model_cancellations(df_res, as_of_date, hotel_num)
+    # make predictions using above model, adjusting occ threshold to optimize F-0.5 score
+    X_test_preds = model.predict_proba(X_test)
+
+    thresh = optimize_prob_threshold(model, X_test=X_test, y_test=y_test)
+    df_future_res = X_test.copy()
+    df_future_res[["will_come_proba", "cxl_proba"]] = df_future_res
+    df_future_res.drop(columns="will_come_proba", inplace=True)
+    df_future_res["will_cancel"] = X_test.cxl_proba >= thresh
+    return df_future_res
+    # df_future_res = df_res.copy()
+    # df_future_res["will_cancel"] = df_preds["prediction"]
+
+    # future_mask = df_future_res["will_cancel"].isna()
+    # df_future_res = df_future_res[~future_mask].copy()
+
+    # return df_future_res
