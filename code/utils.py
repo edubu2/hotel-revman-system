@@ -448,6 +448,8 @@ def model_cancellations(df_res, as_of_date, hotel_num):
     """
     Generates cancellation predictions and returns future-looking reservations dataFrame.
 
+    The resulting DataFrame contains all future (and in-house) reservations touching as_of_date and beyond.
+
     _____
     Parameters:
         - df_res (pd.DataFrame, required): cleaned reservations DataFrame
@@ -487,6 +489,6 @@ def model_cancellations(df_res, as_of_date, hotel_num):
 
     df_preds = optimize_prob_threshold(model, X_test=X_test, y_test=y_test)
 
-    X_train["will_cancel"] = df_preds["prediction"]
+    X_test["will_cancel"] = df_preds["prediction"]
 
-    return X_train
+    return X_test
