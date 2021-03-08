@@ -8,6 +8,8 @@ from sklearn.metrics import precision_score, recall_score, confusion_matrix
 from collections import defaultdict
 import datetime
 from dateutil.relativedelta import *
+from features import X1_cxl_cols, X2_cxl_cols
+from xgboost import XGBClassifier
 
 
 def parse_dates(df_res):
@@ -326,7 +328,9 @@ def split_reservations(df_res, as_of_date, features, y_col="IsCanceled"):
     y_train = df_res[~test_mask][y_col].copy()
     y_test = df_res[test_mask][y_col].copy()
 
-    print(f"Training sample size: {len(X_train)} \n Testing Sample Size: {len(X_test)}")
+    print(
+        f"Training sample size: {len(X_train)}\nTesting sample Size: {len(X_test)}\n\n"
+    )
 
     return X_train, X_test, y_train, y_test
 
@@ -345,7 +349,7 @@ def make_confusion_matrix(
 
     confusion = confusion_matrix(y_test, y_predict)
 
-    fig, ax = plt.subplots(dpi=165, figsize=(7, 5))
+    fig, ax = plt.subplots(dpi=130, figsize=(6, 4))
     sns.set(font_scale=1.3)
     group_counts = ["{0:0.0f}".format(value) for value in confusion.flatten()]
     group_percentages = [
@@ -388,6 +392,7 @@ def make_confusion_matrix(
         plt.savefig(
             save_to, dpi=170, facecolor=facecolor, bbox_inches="tight", pad_inches=1.6
         )
+    plt.show()
 
 
 def get_preds(pred_probas, threshold, y_test):
@@ -413,7 +418,7 @@ def optimize_prob_threshold(
 
     pred_probas = model.predict_proba(X_test)
 
-    thresholds = np.arange(thresh_start, thresh_stop, 0.01)
+    thresholds = np.arange(thresh_start, thresh_stop, 0.002)
     fbetas = {}  # will hold {prob_thresh: resulting_fbeta_score}
 
     for t_val in thresholds:
@@ -424,8 +429,8 @@ def optimize_prob_threshold(
 
     for threshold, fb_score in fbetas.items():
         if fb_score > best_fbeta:
-            best_thresh = threshold
-            best_fbeta = fb_score
+            best_thresh = round(threshold, 3)
+            best_fbeta = round(fb_score, 3)
         else:
             continue
 
@@ -433,7 +438,55 @@ def optimize_prob_threshold(
     make_confusion_matrix(df_preds.actual, df_preds.prediction, threshold=best_thresh)
 
     print(
-        f"Optimal probability threshold (to maximize F-{beta}): {best_thresh} \n F-{beta} Score: {best_fbeta}"
+        f"Optimal probability threshold (to maximize F-{beta}): {best_thresh}\nF-{beta} Score: {best_fbeta}\n"
     )
 
-    return best_thresh, best_fbeta
+    return df_preds
+
+
+def model_cancellations(df_res, as_of_date, hotel_num):
+    """
+    Generates cancellation predictions and returns future-looking reservations dataFrame.
+
+    _____
+    Parameters:
+        - df_res (pd.DataFrame, required): cleaned reservations DataFrame
+        - as_of_date (str "%Y-%m-%d", required): date of simulation
+        - hotel_num (int, required):
+    """
+
+    assert hotel_num in (1, 2), "Invalid hotel_num (must be integer, 1 or 2)."
+
+    if hotel_num == 1:
+        feature_cols = X1_cxl_cols
+        param_md = 5
+        param_ne = 475
+        param_lr = 0.11
+
+    if hotel_num == 2:
+        feature_cols = X2_cxl_cols
+        param_md = 5
+        param_ne = 475
+        param_lr = 0.11
+
+    model = XGBClassifier(
+        objective="binary:logistic",
+        use_label_encoder=False,
+        eval_metric="logloss",
+        random_state=42,
+        n_jobs=-1,
+        learning_rate=param_lr,
+        n_estimators=param_ne,
+        max_depth=param_md,
+    )
+
+    X_train, X_test, y_train, y_test = split_reservations(
+        df_res, as_of_date="2017-08-01", features=feature_cols
+    )
+    model.fit(X_train, y_train)
+
+    df_preds = optimize_prob_threshold(model, X_test=X_test, y_test=y_test)
+
+    X_train["will_cancel"] = df_preds["prediction"]
+
+    return X_train
