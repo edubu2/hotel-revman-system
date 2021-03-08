@@ -296,3 +296,32 @@ def generate_hotel_dfs(res_filepath, capacity=None):
     df_dbd = add_dbd_columns(df_dbd, capacity=capacity)
 
     return df_res, df_dbd
+
+
+def split_reservations(df_res, as_of_date, features, y_col="IsCanceled"):
+    """
+    Performs train/test split.
+
+    Training set will contain all reservations made prior to as_of_date that have not yet checked out of the hotel.
+
+    _______
+    Parameters:
+        - df_res (required): cleaned Reservations DataFrame
+        - as_of_date (required, str, "%Y-%m-%d"): Date that represents 'today' for Rev Management simulation
+        - features (required, list): The column names of the X DataFrame
+        - y_col (optional, string): column name of the target variable
+    """
+    as_of_dt = pd.to_datetime(as_of_date, format="%Y-%m-%d")
+    test_mask = (df_res["ResMadeDate"] <= as_of_date) & (
+        df_res["CheckoutDate"] > as_of_date
+    )
+
+    X_train = df_res[~test_mask][features].copy()
+    X_test = df_res[test_mask][features].copy()
+
+    y_train = df_res[~test_mask][y_col].copy()
+    y_test = df_res[test_mask][y_col].copy()
+
+    print(f"Training sample size: {len(X_train)} \n Testing Sample Size: {len(X_test)}")
+
+    return X_train, X_test, y_train, y_test
