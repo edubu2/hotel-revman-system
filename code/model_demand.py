@@ -3,25 +3,24 @@ import numpy as np
 import datetime
 from dateutil.relativedelta import *
 from collections import defaultdict
+from model_cancellations import predict_cancellations
+
+h1_capacity = 187
+h2_capacity = 226
 
 
-def setup_sim(df_futures, as_of_date="2017-08-01"):
+def setup_sim(df_future_res, as_of_date="2017-08-01"):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
 
     Very similar to setup.df_to_dbd (does the same thing but uses predicted cancels instead of actual)
-
-    Our data is made up of reservations containing 'Arrival Date' and 'Length of Stay'.
-    This function is used to determine how many rooms were sold on a given night, accounting for
-    guests that arrived previously and are staying multiple nights.
-
     ____
     Parameters:
         - df_res (pandas.DataFrame, required): future-looking reservations DataFrame containing "will_cancel" column
         - as_of_date (str ("%Y-%m-%d"), optional): resulting day-by-days DataFrame will start on this day
         - cxl_type (str, optional): either "a" (actual) or "p" (predicted). Default value is "p".
     """
-    df_dates = df_futures.copy()
+    df_dates = df_future_res.copy()
     date = pd.to_datetime(as_of_date, format="%Y-%m-%d")
     end_date = datetime.date(2017, 8, 31)
     delta = datetime.timedelta(days=1)
@@ -90,7 +89,7 @@ def setup_sim(df_futures, as_of_date="2017-08-01"):
         nightly_stats[date_string] = dict(date_stats)
         date += delta
 
-    return pd.DataFrame(nightly_stats).transpose()
+    return pd.DataFrame(nightly_stats).transpose().fillna(0)
 
 
 def add_sim_cols(df_sim, capacity):
@@ -99,20 +98,22 @@ def add_sim_cols(df_sim, capacity):
         - 'Occ' (occupancy)
         - 'RevPAR' (revenue per available room)
         - 'ADR' (by segment)
+        - 'RemSupply' (RoomsOTB - ProjectedCXLs)
         - 'DOW' (day-of-week)
         - 'WD' (weekday - binary)
         - 'WE' (weekend - binary)
         - 'STLY_Date' (datetime "%Y-%m-%d")
+
 
     _____
     Parameters:
         - df_sim: day-by-day hotel DF
         - capacity (int, required): number of rooms in the hotel
     """
-    # add Occ & RevPAR columns'
+    # add Occ/RevPAR/RemSupply columns'
     df_sim["Occ"] = round(df_sim["RoomsOTB"] / capacity, 2)
     df_sim["RevPAR"] = round(df_sim["RevOTB"] / capacity, 2)
-
+    df_sim["RemSupply"] = df_sim.RoomsOTB.astype(int) - df_sim.CxlForecast.astype(int)
     # Add ADR by segment
     df_sim["ADR_OTB"] = round(df_sim.RevOTB / df_sim.RoomsOTB, 2)
     df_sim["Trn_ADR_OTB"] = round(df_sim.Trn_RevOTB / df_sim.Trn_RoomsOTB, 2)
@@ -137,7 +138,7 @@ def add_sim_cols(df_sim, capacity):
     return df_sim
 
 
-def add_stly_cols(df_sim, df_dbd):
+def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
     """
     Adds the following columns to df_sim:
         - Last year actual: Rooms Sold, ADR, Cancellations
@@ -151,4 +152,73 @@ def add_stly_cols(df_sim, df_dbd):
     first_date = df_sim.index.min()
     last_date = df_sim.index.max()
 
-    return
+    stly_cols = [
+        "RoomsOTB",
+        "RevOTB",
+        "ADR_OTB",
+        "CxlForecast",
+        "RemSupply",
+        "Trn_RoomsOTB",
+        "Trn_CxlProj",
+        "Trn_RevOTB",
+        "Trn_ADR_OTB",
+        "TrnP_RoomsOTB",
+        "TrnP_CxlProj",
+        "TrnP_RevOTB",
+        "TrnP_ADR_OTB",
+        "Cnt_RoomsOTB",
+        "Cnt_CxlProj",
+        "Cnt_RevOTB",
+        "Cnt_ADR_OTB",
+        "Grp_RoomsOTB",
+        "Grp_CxlProj",
+        "Grp_RevOTB",
+        "Grp_ADR_OTB",
+    ]
+    stly_col_names = ["STLY_" + col for col in stly_cols]
+
+    def apply_STLY_stats(x):
+        """This function will be used for df_sim.STLY_date.map() to add STLY stats to df_sim."""
+        stly_future_res = predict_cancellations(df_res, x, hotel_num, confusion=False)
+        stly_df_sim = setup_sim(stly_future_res, as_of_date)
+        stly_df_sim = add_sim_cols(stly_df_sim, capacity)
+
+        return stly_df_sim.loc[x, stly_cols]
+
+    df_sim[stly_col_names] = df_sim.STLY_date.map(lambda x: apply_STLY_stats(x))
+
+    return df_sim
+
+
+def generate_simulation(df_future_res, df_dbd, as_of_date, hotel_num, df_res):
+    """
+    Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
+
+    Resulting DataFrame contains all future reservations as of a certain point in time.
+
+    ____
+    Parameters:
+        - df_future_res (pandas.DataFrame, required): reservations dataframe (with proj. cancels) generated
+          from the functions in setup.py and model_cancellations.py
+        - as_of_date (str "%Y-%m-%d", required): date of simulation
+        - hotel_num (int, required): 1 for h1 and 2 for h2
+    """
+    assert hotel_num in [1, 2], "Invalid hotel_num."
+
+    if hotel_num == 1:
+        capacity = h1_capacity
+    else:
+        capacity = h2_capacity
+
+    df_sim = setup_sim(df_future_res, as_of_date)
+    df_sim = add_sim_cols(df_sim, capacity)
+    df_sim = add_stly_cols(
+        df_sim,
+        df_dbd,
+        df_res,
+        hotel_num,
+        as_of_date,
+        capacity,
+    )
+
+    return df_sim, stly_stats_df

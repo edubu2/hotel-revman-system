@@ -118,7 +118,7 @@ def get_fbeta_score(pred_probas, beta, threshold, y_test):
 
 
 def optimize_prob_threshold(
-    model, X_test, y_test, beta=0.5, thresh_start=0.4, thresh_stop=0.95
+    model, X_test, y_test, beta=0.5, thresh_start=0.4, thresh_stop=0.95, confusion=False
 ):
     """
     Takes a trained cancellation XGBoost model and returns X_test, with predictions column (will_cancel)
@@ -142,11 +142,14 @@ def optimize_prob_threshold(
             continue
 
     df_preds = get_preds(pred_probas, best_thresh, y_test)
-    make_confusion_matrix(df_preds.actual, df_preds.prediction, threshold=best_thresh)
+    if confusion:
+        make_confusion_matrix(
+            df_preds.actual, df_preds.prediction, threshold=best_thresh
+        )
 
-    print(
-        f"Optimal probability threshold (to maximize F-{beta}): {best_thresh}\nF-{beta} Score: {best_fbeta}\n"
-    )
+        print(
+            f"Optimal probability threshold (to maximize F-{beta}): {best_thresh}\nF-{beta} Score: {best_fbeta}\n"
+        )
 
     return best_thresh
 
@@ -185,7 +188,7 @@ def model_cancellations(df_res, as_of_date, hotel_num):
     return X_test, y_test, model
 
 
-def predict_cancellations(df_res, as_of_date, hotel_num):
+def predict_cancellations(df_res, as_of_date, hotel_num, confusion=True):
     """
     Generates cancellation predictions and returns future-looking reservations dataFrame.
 
@@ -196,6 +199,7 @@ def predict_cancellations(df_res, as_of_date, hotel_num):
         - df_res (pd.DataFrame, required): cleaned reservations DataFrame
         - as_of_date (str "%Y-%m-%d", required): date of simulation
         - hotel_num (int, required):
+        - confusion (T/F, optional): whether or not a confusion matrix will be printed
     """
 
     # EW - FIX ISSUE: I AM USING SPLIT_RESERVATIONS TWICE, MAYBE?
@@ -203,7 +207,9 @@ def predict_cancellations(df_res, as_of_date, hotel_num):
     # make predictions using above model, adjusting occ threshold to optimize F-0.5 score
     X_test_preds = model.predict_proba(X_test)
 
-    thresh = optimize_prob_threshold(model, X_test=X_test, y_test=y_test)
+    thresh = optimize_prob_threshold(
+        model, X_test=X_test, y_test=y_test, confusion=confusion
+    )
     df_future_res = df_res.loc[list(X_test.index)].copy()
     df_future_res[["will_come_proba", "cxl_proba"]] = X_test_preds
     df_future_res.drop(columns="will_come_proba", inplace=True)
