@@ -204,7 +204,7 @@ def predict_cancellations(df_res, as_of_date, hotel_num):
     X_test_preds = model.predict_proba(X_test)
 
     thresh = optimize_prob_threshold(model, X_test=X_test, y_test=y_test)
-    df_future_res = X_test.copy()
+    df_future_res = df_res.loc[list(X_test.index)].copy()
     df_future_res[["will_come_proba", "cxl_proba"]] = X_test_preds
     df_future_res.drop(columns="will_come_proba", inplace=True)
     df_future_res["will_cancel"] = df_future_res.cxl_proba >= thresh
