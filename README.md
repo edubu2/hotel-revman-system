@@ -13,7 +13,7 @@ Blog post here:
 ___
 ## Introduction
 
-I was a Hotel Revenue Manager with Marriott for five years, and was always curious about the inner-workings of the revenue management systems employed there. The COVID-19 pandemic provided me the opportunity to delve into programming and Data Science. Fast forward one year, and I'm now approaching the end of the 12-week Metis Data Science Bootcamp, and our fifth (and final) project is the 'Passion Project'. I wanted to combine my newly acquired knowledge with the old into the creation of a revenue management system.
+I was a Hotel Revenue Manager with Marriott International for five years, and was always curious about the inner-workings of the revenue management systems employed there. The COVID-19 pandemic provided me the opportunity to delve into programming and Data Science. Fast forward one year, and I'm now approaching the end of the 12-week Metis Data Science Bootcamp, and our fifth (and final) project is the 'Passion Project'. I wanted to combine my newly acquired knowledge with the old into the creation of a revenue management system.
 
 Since the results of this project had to be be made public, I feared I wouldn't be able to find a dataset. I had almost selected a different problem to work on when I found a fully anonymous dataset containing reservation-level hotel data for two European hotels.
 ___
@@ -32,6 +32,14 @@ For this to work, I had to choose a cutoff date that separated training data fro
 
 This allows our model one year of training data (July 2016 - Jul 2017). What happened to the year before that? Well, **pace** data is important for hotels. **Pace** is how many rooms are on the books (OTB) for a future date, compared to how many rooms we had OTB same-time-last-year (STLY) for the same date (adjusted for day of week). I assumed this was important to have, so I could train the model to 'understand,' if you will, whether certain spikes in demand recur annually, or was a one-off occurrence (i.e. an annual holiday parade, or a FIFA World Cup soccer game). If there's no unusual spike in demand, pace can be a good indicator of a necessary price adjustment.
 
+Due to the nature of the dataset I'm working with, and the fact that all reservations are all historical (2015-2017), there are several key features that I won't be able to include in my models:
+* Pricing information
+  * We have average daily rate (ADR) for rooms sold, but not historical selling prices.
+* Competitor pricing (from shops)
+* Reservation changes
+  * Each reservation in the dataset represents the reservation's snapshot at the latest stage (for example, at the time of cancellation, or checkout).
+  * If a reservation is shortened during check-in, it should register as a cancellation for the nights reduced (that's not the case here)
+* Special events (e.g. 'annual holiday parade')
 ___
 ## Tech Stack
 
