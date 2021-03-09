@@ -178,14 +178,14 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
     stly_col_names = ["STLY_" + col for col in stly_cols]
 
     def apply_STLY_stats(x):
-        """This function will be used for df_sim.STLY_date.map() to add STLY stats to df_sim."""
+        """This function will be used for df_sim.STLY_Date.map() to add STLY stats to df_sim."""
         stly_future_res = predict_cancellations(df_res, x, hotel_num, confusion=False)
         stly_df_sim = setup_sim(stly_future_res, as_of_date)
         stly_df_sim = add_sim_cols(stly_df_sim, capacity)
 
         return stly_df_sim.loc[x, stly_cols]
 
-    df_sim[stly_col_names] = df_sim.STLY_date.map(lambda x: apply_STLY_stats(x))
+    df_sim[stly_col_names] = df_sim.STLY_Date.map(lambda x: apply_STLY_stats(x))
 
     return df_sim
 
