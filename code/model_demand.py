@@ -202,11 +202,11 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         stly_df_sim = add_sim_cols(stly_df_sim, capacity)
         stly_stats = list(stly_df_sim.loc[date_string, pull_cols])
         # pull LYA (last year actual)
-        lya_stats = list(df_dbd.loc[date_string, lya_pull_cols])
+        # lya_stats = list(df_dbd.loc[date_string, lya_pull_cols])
 
         # new_stats = stly_stats + lya_stats
         # return tuple(new_stats)
-        return tuple(lya_stats)
+        return tuple(stly_stats)
 
     df_sim[new_col_names] = df_sim.apply(
         lambda row: apply_STLY_stats(row), result_type="expand", axis="columns"
