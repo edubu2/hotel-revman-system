@@ -92,7 +92,7 @@ def setup_sim(df_future_res, as_of_date="2017-08-01"):
     return pd.DataFrame(nightly_stats).transpose().fillna(0)
 
 
-def add_sim_cols(df_sim, df_dbd, capacity):
+def add_sim_cols(df_sim, capacity):
     """
     Adds several columns to df_sim, including:
         - 'Occ' (occupancy)
@@ -103,9 +103,6 @@ def add_sim_cols(df_sim, df_dbd, capacity):
         - 'WD' (weekday - binary)
         - 'WE' (weekend - binary)
         - 'STLY_Date' (datetime "%Y-%m-%d")
-        - 'LYA_RoomsSold' (last year actual rooms sold)
-        - 'LYA_ADR' (last year actual average daily rate)
-        - 'LYA_Occ' (last year actual occupancy)
 
 
     _____
@@ -142,25 +139,11 @@ def add_sim_cols(df_sim, df_dbd, capacity):
     df_sim["WE"] = (df_sim.DOW == "Fri") | (df_sim.DOW == "Sat")
     df_sim["WD"] = df_sim.WE == False
 
-    # add STLY date & LYA columns
+    # add STLY date
     stly_lambda = lambda x: pd.to_datetime(x) + relativedelta(
         years=-1, weekday=pd.to_datetime(x).weekday()
     )
     df_sim["STLY_Date"] = df_sim.index.map(stly_lambda)
-
-    def apply_lyas(row):
-        stly_date = row["STLY_Date"]
-        stly_date_string = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
-
-        LYA_RoomsSold = df_dbd.loc[stly_date_string, "RoomsSold"]
-        LYA_ADR = df_dbd.loc[stly_date_string, "ADR"]
-        LYA_Occ = df_dbd.loc[stly_date_string, "Occ"]
-
-        return LYA_RoomsSold, LYA_ADR, LYA_Occ
-
-    df_sim[["LYA_RoomsSold", "LYA_ADR", "LYA_Occ"]] = df_sim.apply(
-        apply_lyas, axis=1, result_type="expand"
-    )
 
     df_sim.fillna(0, inplace=True)
 
@@ -204,35 +187,34 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         "Grp_RevOTB",
         "Grp_ADR_OTB",
     ]
-    stly_col_names = ["STLY_" + col for col in pull_cols]
-    # lya_pull_cols = ["RoomsSold", "Occ", "ADR", "RevPAR"]
-    # [new_col_names.append("LYA_" + col) for col in lya_pull_cols]
+    new_col_names = ["STLY_" + col for col in pull_cols]
+    lya_pull_cols = ["RoomsSold", "Occ", "ADR", "RevPAR"]
+    [new_col_names.append("LYA_" + col) for col in lya_pull_cols]
 
     def apply_STLY_stats(row):
         """This function will be used for df_sim.STLY_Date.map() to add STLY stats to df_sim."""
 
         # pull stly
         stly_date = row["STLY_Date"]
-        date_string = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
-        stly_future_res = predict_cancellations(df_res, date_string, hotel_num, False)
-        stly_df_sim = setup_sim(stly_future_res, date_string)
-        stly_df_sim = add_sim_cols(stly_df_sim, df_dbd, capacity)
+        date_string = datetime.datetime.strftime(row["STLY_Date"], format="%Y-%m-%d")
+        stly_future_res = predict_cancellations(df_res, stly_date, hotel_num, False)
+        stly_df_sim = setup_sim(stly_future_res, stly_date)
+        stly_df_sim = add_sim_cols(stly_df_sim, capacity)
         stly_stats = list(stly_df_sim.loc[date_string, pull_cols])
         # pull LYA (last year actual)
-        # lya_stats = list(df_dbd.loc[date_string, lya_pull_cols])
+        lya_stats = list(df_dbd.loc[date_string, lya_pull_cols])
 
-        return stly_stats
+        new_stats = stly_stats + lya_stats
+        return tuple(new_stats)
 
-    df_sim[stly_col_names] = df_sim.apply(
-        apply_STLY_stats, result_type="expand", axis="columns"
+    df_sim[new_col_names] = df_sim.apply(
+        lambda row: apply_STLY_stats(row), result_type="expand", axis="columns"
     )
-
-    # df_sim[["LYA_RoomsSold", "LYA_Occ", ""]]
 
     return df_sim
 
 
-def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
+def generate_simulation(df_future_res, df_dbd, as_of_date, hotel_num, df_res):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
 
@@ -252,12 +234,8 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     else:
         capacity = h2_capacity
 
-    df_future_res = predict_cancellations(
-        df_res, as_of_date, hotel_num, confusion=False
-    )
-
     df_sim = setup_sim(df_future_res, as_of_date)
-    df_sim = add_sim_cols(df_sim, df_dbd, capacity)
+    df_sim = add_sim_cols(df_sim, capacity)
     df_sim = add_stly_cols(
         df_sim,
         df_dbd,
@@ -268,11 +246,3 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     )
 
     return df_sim
-
-
-def get_last_30():
-    # start date = as_of_date - 30
-    # as_of start date, run generate_simulation
-    # record rooms OTB
-    #
-    pass

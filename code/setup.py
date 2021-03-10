@@ -249,29 +249,29 @@ def add_dbd_columns(df_dbd, capacity):
     df_dbd.insert(0, "DOW", dow)
     df_dbd["WE"] = (df_dbd.DOW == "Fri") | (df_dbd.DOW == "Sat")
     df_dbd["WD"] = df_dbd.WE == False
-    # col_order = [
-    #     "DOW",
-    #     "Occ",
-    #     "RoomsSold",
-    #     "ADR",
-    #     "RoomRev",
-    #     "RevPAR",
-    #     "Trn_RoomsSold",
-    #     "Trn_ADR",
-    #     "Trn_RoomRev",
-    #     "Grp_RoomsSold",
-    #     "Grp_ADR",
-    #     "Grp_RoomRev",
-    #     "TrnP_RoomsSold",
-    #     "TrnP_ADR",
-    #     "TrnP_RoomRev",
-    #     "Cnt_RoomsSold",
-    #     "Cnt_ADR",
-    #     "Cnt_RoomRev",
-    #     "WE",
-    #     "WD",
-    # ]
-    # df_dbd = df_dbd[col_order].copy()
+    col_order = [
+        "DOW",
+        "Occ",
+        "RoomsSold",
+        "ADR",
+        "RoomRev",
+        "RevPAR",
+        "Trn_RoomsSold",
+        "Trn_ADR",
+        "Trn_RoomRev",
+        "Grp_RoomsSold",
+        "Grp_ADR",
+        "Grp_RoomRev",
+        "TrnP_RoomsSold",
+        "TrnP_ADR",
+        "TrnP_RoomRev",
+        "Cnt_RoomsSold",
+        "Cnt_ADR",
+        "Cnt_RoomRev",
+        "WE",
+        "WD",
+    ]
+    df_dbd = df_dbd[col_order].copy()
 
     # add STLY date
     stly_lambda = lambda x: pd.to_datetime(x) + relativedelta(
