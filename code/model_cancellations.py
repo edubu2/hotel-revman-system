@@ -25,11 +25,12 @@ def split_reservations(df_res, as_of_date, features, y_col="IsCanceled"):
     test_mask = (df_res["ResMadeDate"] <= as_of_date) & (
         df_res["CheckoutDate"] > as_of_date
     )
+    train_mask = df_res["CheckoutDate"] < as_of_date
 
-    X_train = df_res[~test_mask][features].copy()
+    X_train = df_res[train_mask][features].copy()
     X_test = df_res[test_mask][features].copy()
 
-    y_train = df_res[~test_mask][y_col].copy()
+    y_train = df_res[train_mask][y_col].copy()
     y_test = df_res[test_mask][y_col].copy()
 
     print(
