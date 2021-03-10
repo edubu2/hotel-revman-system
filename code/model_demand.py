@@ -188,11 +188,8 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         "Grp_ADR_OTB",
     ]
     new_col_names = ["STLY_" + col for col in pull_cols]
-    lya_pull_cols = "RoomsSold", "Occ", "ADR", "RevPAR"]
-    [new_col_names.append('LY_' + col) for col in lya_pull_cols]
-    
-
-    
+    lya_pull_cols = ["RoomsSold", "Occ", "ADR", "RevPAR"]
+    [new_col_names.append("LY_" + col) for col in lya_pull_cols]
 
     def apply_STLY_stats(row):
         """This function will be used for df_sim.STLY_Date.map() to add STLY stats to df_sim."""
