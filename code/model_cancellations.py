@@ -173,7 +173,7 @@ def model_cancellations(df_res, as_of_date, hotel_num):
         use_label_encoder=False,
         eval_metric="logloss",
         random_state=42,
-        n_jobs=18,
+        n_jobs=6,
         learning_rate=param_lr,
         n_estimators=param_ne,
         max_depth=param_md,
