@@ -116,10 +116,22 @@ def add_sim_cols(df_sim, capacity):
     df_sim["RemSupply"] = df_sim.RoomsOTB.astype(int) - df_sim.CxlForecast.astype(int)
     # Add ADR by segment
     df_sim["ADR_OTB"] = round(df_sim.RevOTB / df_sim.RoomsOTB, 2)
-    df_sim["Trn_ADR_OTB"] = round(df_sim.Trn_RevOTB / df_sim.Trn_RoomsOTB, 2)
-    df_sim["TrnP_ADR_OTB"] = round(df_sim.TrnP_RevOTB / df_sim.TrnP_RoomsOTB, 2)
-    df_sim["Grp_ADR_OTB"] = round(df_sim.Grp_RevOTB / df_sim.Grp_RoomsOTB, 2)
-    df_sim["Cnt_ADR_OTB"] = round(df_sim.Cnt_RevOTB / df_sim.Cnt_RoomsOTB, 2)
+    try:
+        df_sim["Trn_ADR_OTB"] = round(df_sim.Trn_RevOTB / df_sim.Trn_RoomsOTB, 2)
+    except:
+        pass
+    try:
+        df_sim["TrnP_ADR_OTB"] = round(df_sim.TrnP_RevOTB / df_sim.TrnP_RoomsOTB, 2)
+    except:
+        pass
+    try:
+        df_sim["Grp_ADR_OTB"] = round(df_sim.Grp_RevOTB / df_sim.Grp_RoomsOTB, 2)
+    except:
+        pass
+    try:
+        df_sim["Cnt_ADR_OTB"] = round(df_sim.Cnt_RevOTB / df_sim.Cnt_RoomsOTB, 2)
+    except:
+        pass
 
     dow = pd.to_datetime(df_sim.index, format="%Y-%m-%d")
     dow = dow.strftime("%a")
@@ -152,7 +164,7 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
     first_date = df_sim.index.min()
     last_date = df_sim.index.max()
 
-    stly_cols = [
+    pull_cols = [
         "RoomsOTB",
         "RevOTB",
         "ADR_OTB",
@@ -175,17 +187,33 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         "Grp_RevOTB",
         "Grp_ADR_OTB",
     ]
-    stly_col_names = ["STLY_" + col for col in stly_cols]
+    new_col_names = ["STLY_" + col for col in pull_cols]
+    lya_pull_cols = "RoomsSold", "Occ", "ADR", "RevPAR"]
+    [new_col_names.append('LY_' + col) for col in lya_pull_cols]
+    
 
-    def apply_STLY_stats(x):
+    
+
+    def apply_STLY_stats(row):
         """This function will be used for df_sim.STLY_Date.map() to add STLY stats to df_sim."""
-        stly_future_res = predict_cancellations(df_res, x, hotel_num, confusion=False)
-        stly_df_sim = setup_sim(stly_future_res, as_of_date)
+
+        # pull stly
+        stly_date = row["STLY_Date"]
+        date_string = datetime.datetime.strftime(row["STLY_Date"], format="%Y-%m-%d")
+        stly_future_res = predict_cancellations(df_res, stly_date, hotel_num, False)
+        stly_df_sim = setup_sim(stly_future_res, stly_date)
         stly_df_sim = add_sim_cols(stly_df_sim, capacity)
+        df_ly_stats = stly_df_sim.loc[date_string, pull_cols]
+        # pull LYA (last year actual)
+        lya_df = df_dbd.loc[date_string, lya_pull_cols]
 
-        return stly_df_sim.loc[x, stly_cols]
+        df_ly_stats = df_ly_stats.join(lya_df)
 
-    df_sim[stly_col_names] = df_sim.STLY_Date.map(lambda x: apply_STLY_stats(x))
+        return df_ly_stats
+
+    df_sim[new_col_names] = df_sim.apply(
+        lambda row: apply_STLY_stats(row), result_type="expand", axis="columns"
+    )
 
     return df_sim
 
@@ -221,4 +249,4 @@ def generate_simulation(df_future_res, df_dbd, as_of_date, hotel_num, df_res):
         capacity,
     )
 
-    return df_sim, stly_stats_df
+    return df_sim

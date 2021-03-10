@@ -14,7 +14,6 @@ def split_reservations(df_res, as_of_date, features, y_col="IsCanceled"):
     Performs train/test split.
 
     Training set will contain all reservations made prior to as_of_date that have not yet checked out of the hotel.
-
     _______
     Parameters:
         - df_res (required): cleaned Reservations DataFrame
@@ -181,14 +180,14 @@ def model_cancellations(df_res, as_of_date, hotel_num):
     )
 
     X_train, X_test, y_train, y_test = split_reservations(
-        df_res, as_of_date="2017-08-01", features=feature_cols
+        df_res, as_of_date=as_of_date, features=feature_cols
     )
     model.fit(X_train, y_train)
 
     return X_test, y_test, model
 
 
-def predict_cancellations(df_res, as_of_date, hotel_num, confusion=True):
+def predict_cancellations(df_res, as_of_date, hotel_num, confusion):
     """
     Generates cancellation predictions and returns future-looking reservations dataFrame.
 
