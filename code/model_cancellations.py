@@ -187,7 +187,7 @@ def model_cancellations(df_res, as_of_date, hotel_num):
     return X_test, y_test, model
 
 
-def predict_cancellations(df_res, as_of_date, hotel_num, confusion):
+def predict_cancellations(df_res, as_of_date, hotel_num, confusion=True):
     """
     Generates cancellation predictions and returns future-looking reservations dataFrame.
 
