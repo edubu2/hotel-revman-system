@@ -189,7 +189,7 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
     ]
     new_col_names = ["STLY_" + col for col in pull_cols]
     lya_pull_cols = ["RoomsSold", "Occ", "ADR", "RevPAR"]
-    [new_col_names.append("LY_" + col) for col in lya_pull_cols]
+    [new_col_names.append("LYA_" + col) for col in lya_pull_cols]
 
     def apply_STLY_stats(row):
         """This function will be used for df_sim.STLY_Date.map() to add STLY stats to df_sim."""
@@ -200,13 +200,13 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         stly_future_res = predict_cancellations(df_res, stly_date, hotel_num, False)
         stly_df_sim = setup_sim(stly_future_res, stly_date)
         stly_df_sim = add_sim_cols(stly_df_sim, capacity)
-        df_ly_stats = stly_df_sim.loc[date_string, pull_cols]
+        stly_stats = list(stly_df_sim.loc[date_string, pull_cols])
         # pull LYA (last year actual)
-        lya_df = df_dbd.loc[date_string, lya_pull_cols]
+        lya_stats = list(df_dbd.loc[date_string, lya_pull_cols])
 
-        df_ly_stats = df_ly_stats.join(lya_df)
+        new_stats = stly_stats + lya_stats
 
-        return df_ly_stats
+        return tuple(new_stats)
 
     df_sim[new_col_names] = df_sim.apply(
         lambda row: apply_STLY_stats(row), result_type="expand", axis="columns"
