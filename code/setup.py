@@ -167,7 +167,7 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
         tminus = 0
 
         # initialize date dict, which will go into nightly_stats as {'date': {'stat': 'val', 'stat', 'val'}}
-        date_stats = defaultdict(int)
+        day_stats = defaultdict(int)
 
         # start on the arrival date and move back
         # to capture ALL reservations touching 'date' (and not just those that arrive on 'date')
@@ -186,32 +186,38 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
                 & (df_dates.IsCanceled == 0)
             )
 
-            date_stats["RoomsSold"] += len(df_dates[mask])
-            date_stats["RoomRev"] += df_dates[mask].ADR.sum()
+            day_stats["RoomsSold"] += len(df_dates[mask])
+            day_stats["RoomRev"] += df_dates[mask].ADR.sum()
+            day_stats["NumCancels"] += df_dates[mask].IsCanceled.sum()
 
             tmp = (
-                df_dates[mask][["ResNum", "CustomerType", "ADR"]]
+                df_dates[mask][["ResNum", "CustomerType", "ADR", "IsCanceled"]]
                 .groupby("CustomerType")
-                .agg({"ResNum": "count", "ADR": "sum"})
-                .rename(columns={"ResNum": "RS", "ADR": "Rev"})
+                .agg({"ResNum": "count", "ADR": "sum", "IsCanceled": "sum"})
+                .rename(
+                    columns={"ResNum": "RS", "ADR": "Rev", "IsCanceled": "NumCancels"}
+                )
             )
 
             if "Transient" in list(tmp.index):
-                date_stats["Trn_RoomsSold"] += tmp.loc["Transient", "RS"]
-                date_stats["Trn_RoomRev"] += tmp.loc["Transient", "Rev"]
+                day_stats["Trn_RoomsSold"] += tmp.loc["Transient", "RS"]
+                day_stats["Trn_RoomRev"] += tmp.loc["Transient", "Rev"]
+                day_stats["Trn_NumCancels"] += tmp.loc["Transient", "NumCancels"]
             if "Transient-Party" in list(tmp.index):
-                date_stats["TrnP_RoomsSold"] += tmp.loc["Transient-Party", "RS"]
-                date_stats["TrnP_RoomRev"] += tmp.loc["Transient-Party", "Rev"]
+                day_stats["TrnP_RoomsSold"] += tmp.loc["Transient-Party", "RS"]
+                day_stats["TrnP_RoomRev"] += tmp.loc["Transient-Party", "Rev"]
+                day_stats["TrnP_NumCancels"] += tmp.loc["Transient-Party", "NumCancels"]
             if "Group" in list(tmp.index):
-                date_stats["Grp_RoomsSold"] += tmp.loc["Group", "RS"]
-                date_stats["Grp_RoomRev"] += tmp.loc["Group", "Rev"]
+                day_stats["Grp_RoomsSold"] += tmp.loc["Group", "RS"]
+                day_stats["Grp_RoomRev"] += tmp.loc["Group", "Rev"]
+                day_stats["Grp_NumCancels"] += tmp.loc["Group", "NumCancels"]
             if "Contract" in list(tmp.index):
-                date_stats["Cnt_RoomsSold"] += tmp.loc["Contract", "RS"]
-                date_stats["Cnt_RoomRev"] += tmp.loc["Contract", "Rev"]
-
+                day_stats["Cnt_RoomsSold"] += tmp.loc["Contract", "RS"]
+                day_stats["Cnt_RoomRev"] += tmp.loc["Contract", "Rev"]
+                day_stats["Cnt_NumCancels"] += tmp.loc["Contract", "NumCancels"]
             tminus += 1
 
-        nightly_stats[date_string] = dict(date_stats)
+        nightly_stats[date_string] = dict(day_stats)
         date += delta
 
     return pd.DataFrame(nightly_stats).transpose()

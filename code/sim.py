@@ -207,19 +207,16 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
         # f_res = predict_cancellations(df_res, stly_date, hotel_num, False)
 
-        fut_res = split_reservations(
+        otb_res = split_reservations(
             df_res=df_res,
             as_of_date=stly_date_str,
             hotel_num=hotel_num,
-            features_only=False,
+            for_="otb",
         )
 
-        mask = (fut_res.ArrivalDate <= stly_date) & (fut_res.CheckoutDate > stly_date)
-        fut_res = fut_res[mask]
-
-        STLY_OTB = len(fut_res)
-        STLY_ADR = fut_res["ADR"].mean()
-        STLY_REV = fut_res["ADR"].sum()
+        STLY_OTB = len(otb_res)
+        STLY_ADR = otb_res["ADR"].mean()
+        STLY_REV = otb_res["ADR"].sum()
 
         # DON'T NEED THESE NEXT THREE ROWS? CAN JUST FILTER INSTEAD?
         # stly_df_sim = setup_sim(stly_future_res, stly_date)
@@ -239,7 +236,7 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
     return df_sim
 
 
-def generate_simulation(df_future_res, df_dbd, as_of_date, hotel_num, df_res):
+def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
 
@@ -253,6 +250,8 @@ def generate_simulation(df_future_res, df_dbd, as_of_date, hotel_num, df_res):
         - hotel_num (int, required): 1 for h1 and 2 for h2
     """
     assert hotel_num in [1, 2], "Invalid hotel_num."
+
+    df_future_res = predict_cancellations(df_res, as_of_date, hotel_num)
 
     if hotel_num == 1:
         capacity = h1_capacity

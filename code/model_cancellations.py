@@ -9,9 +9,7 @@ from features import X1_cxl_cols, X2_cxl_cols
 from xgboost import XGBClassifier
 
 
-def split_reservations(
-    df_res, as_of_date, hotel_num, y_col="IsCanceled", features_only=True
-):
+def split_reservations(df_res, as_of_date, hotel_num, y_col="IsCanceled", for_="model"):
     """
     Performs train/test split.
 
@@ -22,8 +20,9 @@ def split_reservations(
         - as_of_date (required, str, "%Y-%m-%d"): Date that represents 'today' for Rev Management simulation
         - hotel_name (required, int): Which hotel (used for column names of the X DataFrame)
         - y_col (optional, string): column name of the target variable
-        - features_only (optional, bool): if True, X and y train/test will be returned.
-            - if False, only future reservations on the books as of as_of_date will be returned in one DataFrame.
+        - for_ (optional, string): 'model' or 'otb'
+            - 'model': returns train/test split, separated by as_of_date
+            - 'otb': returns all future reservations OTB (on-the-books) as of as_of_date
     """
     assert hotel_num in [1, 2], "Invalid hotel_num. Must be integer: 1 or 2."
 
@@ -34,7 +33,7 @@ def split_reservations(
 
     as_of_dt = pd.to_datetime(as_of_date, format="%Y-%m-%d")
 
-    if features_only:
+    if for_ == "model":
         test_mask = (df_res["ResMadeDate"] <= as_of_date) & (
             df_res["CheckoutDate"] > as_of_date
         )
@@ -49,15 +48,14 @@ def split_reservations(
         )
         return X_train, X_test, y_train, y_test
 
-    else:
+    elif for_ == "otb":
+        # cxl'd res. only included in fut_res if canceled before as_of_date
         test_mask = (
-            (df_res["ResMadeDate"] <= as_of_date)
-            & (df_res["CheckoutDate"] > as_of_date)
+            (df_res["ResMadeDate"] <= as_of_date)  # prev. reservations
+            & (df_res["ArrivalDate"] <= as_of_date)  # arriving today or in future
             & (
-                (df_res["IsCanceled"] == 1)
-                & (df_res["ReservationStatusDate"] <= as_of_date)
-                | (df_res["IsCanceled"] == 0)
-            )
+                df_res["CheckoutDate"] > as_of_date
+            )  # to capture earlier check-ins that are still in hotel
         )
         return df_res[test_mask]
 
@@ -177,6 +175,18 @@ def optimize_prob_threshold(
 
 
 def model_cancellations(df_res, as_of_date, hotel_num):
+    """
+    Performs train/test split using split_reservations func,
+    Prepares & fits the XGBClassifier model on the training data.
+    Model hyperparameters are based on grid search results (hotel-specific).
+
+    Returns X_test, y_test, & trained model.
+
+    Parameters (all required):
+        - df_res (pandas.DataFrame)
+        - as_of_date (str, i.e. "2017-08-24")
+        - hotel_num (int)
+    """
     assert hotel_num in (1, 2), "Invalid hotel_num (must be integer, 1 or 2)."
 
     if hotel_num == 1:
