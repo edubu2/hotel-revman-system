@@ -248,6 +248,10 @@ def add_dbd_columns(df_dbd, capacity):
     df_dbd["TrnP_ADR"] = round(df_dbd.TrnP_RoomRev / df_dbd.TrnP_RoomsSold, 2)
     df_dbd["Grp_ADR"] = round(df_dbd.Grp_RoomRev / df_dbd.Grp_RoomsSold, 2)
     df_dbd["Cnt_ADR"] = round(df_dbd.Cnt_RoomRev / df_dbd.Cnt_RoomsSold, 2)
+    df_dbd["Trn_RevPAR"] = round(df_dbd.Trn_RoomRev / df_dbd.Trn_RoomsSold, 2)
+    df_dbd["TrnP_RevPAR"] = round(df_dbd.TrnP_RoomRev / df_dbd.TrnP_RoomsSold, 2)
+    df_dbd["Grp_RevPAR"] = round(df_dbd.Grp_RoomRev / df_dbd.Grp_RoomsSold, 2)
+    df_dbd["Cnt_RevPAR"] = round(df_dbd.Cnt_RoomRev / df_dbd.Cnt_RoomsSold, 2)
 
     dow = pd.to_datetime(df_dbd.index, format="%Y-%m-%d")
     dow = dow.strftime("%a")
@@ -285,6 +289,7 @@ def add_dbd_columns(df_dbd, capacity):
     )
     df_dbd["STLY_Date"] = df_dbd.index.map(stly_lambda)
 
+    df_dbd.index = pd.to_datetime(df_dbd.index, format="%Y-%m-%d")
     df_dbd.fillna(0, inplace=True)
 
     return df_dbd
