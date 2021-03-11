@@ -9,7 +9,9 @@ from features import X1_cxl_cols, X2_cxl_cols
 from xgboost import XGBClassifier
 
 
-def split_reservations(df_res, as_of_date, features, y_col="IsCanceled"):
+def split_reservations(
+    df_res, as_of_date, hotel_num, y_col="IsCanceled", features_only=True
+):
     """
     Performs train/test split.
 
@@ -18,25 +20,46 @@ def split_reservations(df_res, as_of_date, features, y_col="IsCanceled"):
     Parameters:
         - df_res (required): cleaned Reservations DataFrame
         - as_of_date (required, str, "%Y-%m-%d"): Date that represents 'today' for Rev Management simulation
-        - features (required, list): The column names of the X DataFrame
+        - hotel_name (required, int): Which hotel (used for column names of the X DataFrame)
         - y_col (optional, string): column name of the target variable
+        - features_only (optional, bool): if True, X and y train/test will be returned.
+            - if False, only future reservations on the books as of as_of_date will be returned in one DataFrame.
     """
+    assert hotel_num in [1, 2], "Invalid hotel_num. Must be integer: 1 or 2."
+
+    if hotel_num == 1:
+        features = X1_cxl_cols
+    else:
+        features = X2_cxl_cols
+
     as_of_dt = pd.to_datetime(as_of_date, format="%Y-%m-%d")
-    test_mask = (df_res["ResMadeDate"] <= as_of_date) & (
-        df_res["CheckoutDate"] > as_of_date
-    )
 
-    X_train = df_res[~test_mask][features].copy()
-    X_test = df_res[test_mask][features].copy()
+    if features_only:
+        test_mask = (df_res["ResMadeDate"] <= as_of_date) & (
+            df_res["CheckoutDate"] > as_of_date
+        )
+        X_train = df_res[~test_mask][features].copy()
+        X_test = df_res[test_mask][features].copy()
 
-    y_train = df_res[~test_mask][y_col].copy()
-    y_test = df_res[test_mask][y_col].copy()
+        y_train = df_res[~test_mask][y_col].copy()
+        y_test = df_res[test_mask][y_col].copy()
 
-    print(
-        f"Training sample size: {len(X_train)}\nTesting sample Size: {len(X_test)}\n\n"
-    )
+        print(
+            f"Training sample size: {len(X_train)}\nTesting sample Size: {len(X_test)}\n\n"
+        )
+        return X_train, X_test, y_train, y_test
 
-    return X_train, X_test, y_train, y_test
+    else:
+        test_mask = (
+            (df_res["ResMadeDate"] <= as_of_date)
+            & (df_res["CheckoutDate"] > as_of_date)
+            & (
+                (df_res["IsCanceled"] == 1)
+                & (df_res["ReservationStatusDate"] <= as_of_date)
+                | (df_res["IsCanceled"] == 0)
+            )
+        )
+        return df_res[test_mask]
 
 
 def make_confusion_matrix(
@@ -180,7 +203,7 @@ def model_cancellations(df_res, as_of_date, hotel_num):
     )
 
     X_train, X_test, y_train, y_test = split_reservations(
-        df_res, as_of_date=as_of_date, features=feature_cols
+        df_res, as_of_date=as_of_date, hotel_num=hotel_num
     )
     model.fit(X_train, y_train)
 
