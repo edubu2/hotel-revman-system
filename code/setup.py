@@ -180,6 +180,9 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
                 date_tminus, format="%Y-%m-%d"
             )
 
+            mask = (df_dates.LOS >= 1 + tminus) & (df_dates.IsCanceled == 0)
+            day_stats["NumCancels"] += df_dates[mask].IsCanceled.sum()
+
             mask = (
                 (df_dates.ArrivalDate == date_tminus_string)
                 & (df_dates.LOS >= 1 + tminus)
@@ -188,7 +191,6 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
 
             day_stats["RoomsSold"] += len(df_dates[mask])
             day_stats["RoomRev"] += df_dates[mask].ADR.sum()
-            day_stats["NumCancels"] += df_dates[mask].IsCanceled.sum()
 
             tmp = (
                 df_dates[mask][["ResNum", "CustomerType", "ADR", "IsCanceled"]]
@@ -202,19 +204,15 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
             if "Transient" in list(tmp.index):
                 day_stats["Trn_RoomsSold"] += tmp.loc["Transient", "RS"]
                 day_stats["Trn_RoomRev"] += tmp.loc["Transient", "Rev"]
-                day_stats["Trn_NumCancels"] += tmp.loc["Transient", "NumCancels"]
             if "Transient-Party" in list(tmp.index):
                 day_stats["TrnP_RoomsSold"] += tmp.loc["Transient-Party", "RS"]
                 day_stats["TrnP_RoomRev"] += tmp.loc["Transient-Party", "Rev"]
-                day_stats["TrnP_NumCancels"] += tmp.loc["Transient-Party", "NumCancels"]
             if "Group" in list(tmp.index):
                 day_stats["Grp_RoomsSold"] += tmp.loc["Group", "RS"]
                 day_stats["Grp_RoomRev"] += tmp.loc["Group", "Rev"]
-                day_stats["Grp_NumCancels"] += tmp.loc["Group", "NumCancels"]
             if "Contract" in list(tmp.index):
                 day_stats["Cnt_RoomsSold"] += tmp.loc["Contract", "RS"]
                 day_stats["Cnt_RoomRev"] += tmp.loc["Contract", "Rev"]
-                day_stats["Cnt_NumCancels"] += tmp.loc["Contract", "NumCancels"]
             tminus += 1
 
         nightly_stats[date_string] = dict(day_stats)
@@ -262,6 +260,7 @@ def add_dbd_columns(df_dbd, capacity):
         "ADR",
         "RoomRev",
         "RevPAR",
+        "NumCancels",
         "Trn_RoomsSold",
         "Trn_ADR",
         "Trn_RoomRev",
