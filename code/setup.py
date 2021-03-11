@@ -231,6 +231,7 @@ def add_dbd_columns(df_dbd, capacity):
         - 'WD' (weekday - binary)
         - 'WE' (weekend - binary)
         - 'STLY_Date' (datetime "%Y-%m-%d")
+        - 'NumCancels'
 
     _____
     Parameters:

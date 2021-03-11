@@ -147,15 +147,40 @@ def add_sim_cols(df_sim, df_dbd, capacity):
     def apply_ly_cols(row):
         stly_date = row["STLY_Date"]
         stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
-        df_lya = df_dbd.loc[stly_date_str, ["RoomsSold", "ADR", "RoomRev", "RevPAR"]]
+        df_lya = list(
+            df_dbd.loc[
+                stly_date_str, ["RoomsSold", "ADR", "RoomRev", "RevPAR", "NumCancels"]
+            ]
+        )
         return tuple(df_lya)
 
-    df_sim[["LYA_RoomsSold", "LYA_ADR", "LYA_RoomRev", "LYA_RevPAR"]] = df_sim.apply(
-        apply_ly_cols, axis=1, result_type="expand"
-    )
+    df_sim[
+        ["LYA_RoomsSold", "LYA_ADR", "LYA_RoomRev", "LYA_RevPAR", "LYA_NumCancels"]
+    ] = df_sim.apply(apply_ly_cols, axis=1, result_type="expand")
 
     df_sim.fillna(0, inplace=True)
     return df_sim
+
+
+def apply_STLY_stats(row):
+    """This function will be used in add_stly_cols to add STLY stats to df_sim."""
+
+    # pull stly
+    stly_date = row["STLY_Date"]
+    stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
+
+    otb_res = split_reservations(
+        df_res=df_res,
+        as_of_date=stly_date_str,
+        hotel_num=hotel_num,
+        for_="otb",
+    )
+
+    STLY_OTB = len(otb_res)
+    STLY_ADR = otb_res["ADR"].mean()
+    STLY_REV = otb_res["ADR"].sum()
+
+    return STLY_OTB, STLY_REV, STLY_ADR
 
 
 def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
@@ -169,43 +194,13 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         - df_sim (pandas.DataFrame, required): simulation DataFrame (future looking)
         - df_dbd (pandas.DataFrame, required): actual hotel-level data for entire dataset
     """
-    # first_date = df_sim.index.min()
-    # last_date = df_sim.index.max()
-
-    # pull_cols = [
-    #     "RoomsOTB",
-    #     "RevOTB",
-    #     "ADR_OTB",
-    #     "CxlForecast",
-    #     "RemSupply",
-    #     "Trn_RoomsOTB",
-    #     "Trn_CxlProj",
-    #     "Trn_RevOTB",
-    #     "Trn_ADR_OTB",
-    #     "TrnP_RoomsOTB",
-    #     "TrnP_CxlProj",
-    #     "TrnP_RevOTB",
-    #     "TrnP_ADR_OTB",
-    #     "Cnt_RoomsOTB",
-    #     "Cnt_CxlProj",
-    #     "Cnt_RevOTB",
-    #     "Cnt_ADR_OTB",
-    #     "Grp_RoomsOTB",
-    #     "Grp_CxlProj",
-    #     "Grp_RevOTB",
-    #     "Grp_ADR_OTB",
-    # ]
-    # new_col_names = ["STLY_" + col for col in pull_cols]
-    # lya_pull_cols = ["RoomsSold", "Occ", "ADR", "RevPAR"]
-    # [new_col_names.append("LYA_" + col) for col in lya_pull_cols]
 
     def apply_STLY_stats(row):
-        """This function will be used for df_sim.STLY_Date.map() to add STLY stats to df_sim."""
+        """This function will be used in add_stly_cols to add STLY stats to df_sim."""
 
         # pull stly
         stly_date = row["STLY_Date"]
         stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
-        # f_res = predict_cancellations(df_res, stly_date, hotel_num, False)
 
         otb_res = split_reservations(
             df_res=df_res,
@@ -218,14 +213,6 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         STLY_ADR = otb_res["ADR"].mean()
         STLY_REV = otb_res["ADR"].sum()
 
-        # DON'T NEED THESE NEXT THREE ROWS? CAN JUST FILTER INSTEAD?
-        # stly_df_sim = setup_sim(stly_future_res, stly_date)
-        # stly_df_sim = add_sim_cols(stly_df_sim, capacity)
-        # stly_stats = list(stly_df_sim.loc[date_string, pull_cols])
-        # pull LYA (last year actual)
-        # lya_stats = list(df_dbd.loc[date_string, lya_pull_cols])
-
-        # new_stats = stly_stats + lya_stats
         return STLY_OTB, STLY_REV, STLY_ADR
 
     new_col_names = ["STLY_OTB", "STLY_Rev", "STLY_ADR"]
