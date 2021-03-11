@@ -151,9 +151,7 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
         - df_res (pandas.DataFrame, required): reservations DataFrame
         - first_date (str ("%Y-%m-%d"), optional): resulting day-by-days DataFrame will start on this day
     """
-    mask = df_res["IsCanceled"] == 0
-    df_dates = df_res[mask].copy()
-
+    df_dates = df_res.copy()
     date = pd.to_datetime(first_date, format="%Y-%m-%d")
     end_date = datetime.date(2017, 8, 31)
     delta = datetime.timedelta(days=1)
@@ -180,7 +178,9 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
                 date_tminus, format="%Y-%m-%d"
             )
 
-            mask = (df_dates.LOS >= 1 + tminus) & (df_dates.IsCanceled == 0)
+            mask = (df_dates.ArrivalDate == date_tminus_string) & (
+                df_dates.LOS >= 1 + tminus
+            )
             day_stats["NumCancels"] += df_dates[mask].IsCanceled.sum()
 
             mask = (
