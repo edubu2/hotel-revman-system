@@ -43,9 +43,9 @@ def split_reservations(df_res, as_of_date, hotel_num, y_col="IsCanceled", for_="
         y_train = df_res[~test_mask][y_col].copy()
         y_test = df_res[test_mask][y_col].copy()
 
-        print(
-            f"Training sample size: {len(X_train)}\nTesting sample Size: {len(X_test)}\n\n"
-        )
+        # print(
+        #     f"Training sample size: {len(X_train)}\nTesting sample Size: {len(X_test)}\n\n"
+        # )
         return X_train, X_test, y_train, y_test
 
     elif for_ == "otb":
