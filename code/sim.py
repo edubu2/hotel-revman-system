@@ -223,6 +223,35 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
     return df_sim
 
 
+def add_pricing(df_sim):
+    df_sim.index = pd.to_datetime(df_sim.index)
+    df_pricing = (
+        df_sim[["Trn_RoomsOTB", "Trn_RevOTB", "WD"]]
+        .groupby([pd.Grouper(freq="1W"), "WD"])
+        .agg("sum")
+    )
+    df_pricing = df_pricing.reset_index().rename(columns={"level_0": "Date"})
+    df_pricing["Date"] = pd.to_datetime(df_pricing.Date, format="%Y-%m-%d")
+    df_pricing["Trn_ADR_OTB"] = round(
+        df_pricing.Trn_RevOTB / df_pricing.Trn_RoomsOTB, 2
+    )
+    df_pricing.index = df_pricing.Date
+
+    df_sim["WeekEndDate"] = df_sim.index + pd.DateOffset(weekday=6)
+
+    def apply_rates(row):
+        wd = row["WD"] == 1
+        date = datetime.datetime.strftime(row.name, format="%Y-%m-%d")
+        week_end = datetime.datetime.strftime(row.WeekEndDate, format="%Y-%m-%d")
+        mask = df_pricing.WD == wd
+        price = df_pricing[mask].loc[week_end, "Trn_ADR_OTB"]
+        return price
+
+    df_sim["SellingPrice"] = df_sim.apply(apply_rates, axis=1)
+
+    return df_sim
+
+
 def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
@@ -255,5 +284,6 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
         as_of_date,
         capacity,
     )
+    df_sim = add_pricing(df_sim)
 
     return df_sim
