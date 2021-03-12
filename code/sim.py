@@ -35,7 +35,17 @@ def setup_sim(df_future_res, as_of_date="2017-08-01"):
         # initialize date dict, which will go into nightly_stats as {'date': {'stat': 'val', 'stat', 'val'}}
         date_stats = defaultdict(int)
 
-        mask = (df_dates.ArrivalDate <= date) & (df_dates.CheckoutDate > date)
+        mask = (
+            (df_dates.ArrivalDate <= date)
+            & (df_dates.CheckoutDate > date)
+            & (
+                (df_dates.IsCanceled == 0)
+                | (
+                    (df_dates.IsCanceled == 1)
+                    & (df_dates.ReservationStatusDate <= date)
+                )
+            )
+        )
 
         night_df = df_dates[mask].copy()
         date_stats["RoomsOTB"] += len(night_df)
@@ -161,21 +171,25 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         # pull stly
         stly_date = row["STLY_Date"]
         stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
-
-        otb_res = split_reservations(
-            df_res=df_res,
-            as_of_date=stly_date_str,
-            hotel_num=hotel_num,
-            for_="otb",
+        stly_future_res = predict_cancellations(
+            df_res, stly_date_str, hotel_num, confusion=False
         )
+        stly_sim = setup_sim(stly_future_res, stly_date_str)
+        stly_sim = add_sim_cols(stly_sim, df_dbd, capacity)
 
-        STLY_OTB = len(otb_res)
-        STLY_ADR = otb_res["ADR"].mean()
-        STLY_REV = otb_res["ADR"].sum()
+        STLY_OTB = stly_sim.loc[stly_date_str, "RoomsOTB"]
+        STLY_REV = stly_sim.loc[stly_date_str, "RevOTB"]
+        STLY_ADR = round(STLY_REV / STLY_OTB, 2)
+        STLY_CxlForecast = stly_sim.loc[stly_date_str, "CxlForecast"]
+        counter += 1
+        print(f"Done training model {counter}/{num_models}")
 
-        return STLY_OTB, STLY_REV, STLY_ADR
+        return STLY_OTB, STLY_REV, STLY_ADR, STLY_CxlForecast
 
-    new_col_names = ["STLY_OTB", "STLY_Rev", "STLY_ADR"]
+    num_models = len(df_sim)
+    print(f"Training {num_models} models to obtain STLY statistics.")
+    counter = 0
+    new_col_names = ["STLY_OTB", "STLY_Rev", "STLY_ADR", "STLY_CxlForecast"]
     df_sim[new_col_names] = df_sim.apply(
         apply_STLY_stats, result_type="expand", axis="columns"
     )
@@ -184,6 +198,13 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
 
 
 def add_pricing(df_sim):
+    """
+    Adds 'SellingPrice' column to df_sim.
+
+    Contains the average rate for all booked reservations during a given week (WD/WE).
+    This gives us an indication of what the hotel's online selling prices.
+    """
+    # get average WD/WE pricing for each week
     df_sim.index = pd.to_datetime(df_sim.index)
     df_pricing = (
         df_sim[["Trn_RoomsOTB", "Trn_RevOTB", "WD"]]
@@ -199,6 +220,7 @@ def add_pricing(df_sim):
 
     df_sim["WeekEndDate"] = df_sim.index + pd.DateOffset(weekday=6)
 
+    # apply the weekly WD/WE prices to the original df_sim
     def apply_rates(row):
         wd = row["WD"] == 1
         date = datetime.datetime.strftime(row.name, format="%Y-%m-%d")
