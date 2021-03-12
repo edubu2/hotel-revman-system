@@ -20,7 +20,7 @@ def setup_sim(df_future_res, as_of_date="2017-08-01"):
         - as_of_date (str ("%Y-%m-%d"), optional): resulting day-by-days DataFrame will start on this day
         - cxl_type (str, optional): either "a" (actual) or "p" (predicted). Default value is "p".
     """
-    print("Parsing reservations...")
+
     df_dates = df_future_res.copy()
     date = pd.to_datetime(as_of_date, format="%Y-%m-%d")
     end_date = datetime.date(2017, 8, 31)
@@ -175,6 +175,7 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         # pull stly
         stly_date = row["STLY_Date"]
         stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
+        print(f"Predicting cancellations for STLY date {stly_date_str}...")
         stly_future_res = predict_cancellations(
             df_res, stly_date_str, hotel_num, confusion=False
         )
@@ -195,7 +196,7 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
     df_sim[new_col_names] = df_sim.apply(
         apply_STLY_stats, result_type="expand", axis="columns"
     )
-    print("STLY statistics obtained.")
+    print("\nSTLY statistics obtained.\n")
     return df_sim
 
 
@@ -219,8 +220,7 @@ def add_pricing(df_sim):
         df_pricing.Trn_RevOTB / df_pricing.Trn_RoomsOTB, 2
     )
     df_pricing.index = df_pricing.Date
-    n = len(df_sim)
-    print(f"Ignore red warning below. Operation only being applied to {n} rows.")
+
     df_sim["WeekEndDate"] = df_sim.index + pd.DateOffset(weekday=6)
 
     # apply the weekly WD/WE prices to the original df_sim
@@ -277,6 +277,8 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
         capacity,
     )
     df_sim = add_pricing(df_sim)
-    print("The simulation has begun.")
-
+    print("Simulation setup complete!\n")
+    print(
+        f"Ignore red warning below. Operation was only applied to {len(df_sim)} rows."
+    )
     return df_sim
