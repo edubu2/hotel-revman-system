@@ -38,13 +38,8 @@ def setup_sim(df_future_res, as_of_date="2017-08-01"):
         mask = (
             (df_dates.ArrivalDate <= date)
             & (df_dates.CheckoutDate > date)
-            & (
-                (df_dates.IsCanceled == 0)
-                | (
-                    (df_dates.IsCanceled == 1)
-                    & (df_dates.ReservationStatusDate <= date)
-                )
-            )
+            & (df_dates.IsCanceled == 0)
+            & (df_dates.ResMadeDate <= date)
         )
 
         night_df = df_dates[mask].copy()
@@ -104,7 +99,9 @@ def add_sim_cols(df_sim, df_dbd, capacity):
     # add Occ/RevPAR/RemSupply columns'
     df_sim["Occ"] = round(df_sim["RoomsOTB"] / capacity, 2)
     df_sim["RevPAR"] = round(df_sim["RevOTB"] / capacity, 2)
-    df_sim["RemSupply"] = df_sim.RoomsOTB.astype(int) - df_sim.CxlForecast.astype(int)
+    df_sim["RemSupply"] = (
+        capacity - df_sim.RoomsOTB.astype(int) + df_sim.CxlForecast.astype(int)
+    )
     # Add ADR by segment
     df_sim["ADR_OTB"] = round(df_sim.RevOTB / df_sim.RoomsOTB, 2)
     try:
@@ -157,7 +154,6 @@ def add_sim_cols(df_sim, df_dbd, capacity):
 def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
     """
     Adds the following columns to df_sim:
-        - Last year actual: Rooms Sold, ADR, Cancellations
         - STLY: RoomsOTB, ADR_OTB, TotalRoomsBooked_L30 & L90
     ____
     Parameters:
@@ -181,14 +177,12 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         STLY_REV = stly_sim.loc[stly_date_str, "RevOTB"]
         STLY_ADR = round(STLY_REV / STLY_OTB, 2)
         STLY_CxlForecast = stly_sim.loc[stly_date_str, "CxlForecast"]
-        counter += 1
-        print(f"Done training model {counter}/{num_models}")
 
         return STLY_OTB, STLY_REV, STLY_ADR, STLY_CxlForecast
 
     num_models = len(df_sim)
     print(f"Training {num_models} models to obtain STLY statistics.")
-    counter = 0
+
     new_col_names = ["STLY_OTB", "STLY_Rev", "STLY_ADR", "STLY_CxlForecast"]
     df_sim[new_col_names] = df_sim.apply(
         apply_STLY_stats, result_type="expand", axis="columns"
@@ -217,7 +211,8 @@ def add_pricing(df_sim):
         df_pricing.Trn_RevOTB / df_pricing.Trn_RoomsOTB, 2
     )
     df_pricing.index = df_pricing.Date
-
+    n = len(df_sim)
+    print(f"Ignore red warning below. Operation only being applied to {n} rows.")
     df_sim["WeekEndDate"] = df_sim.index + pd.DateOffset(weekday=6)
 
     # apply the weekly WD/WE prices to the original df_sim
@@ -248,6 +243,9 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
         - hotel_num (int, required): 1 for h1 and 2 for h2
     """
     assert hotel_num in [1, 2], "Invalid hotel_num."
+    aod_dt = pd.to_datetime(as_of_date)
+    min_dt = datetime.date(2016, 7, 1)
+    assert aod_dt > min_dt, "as_of_date must be between 7/1/16 and 8/30/17"
 
     df_future_res = predict_cancellations(df_res, as_of_date, hotel_num)
 
