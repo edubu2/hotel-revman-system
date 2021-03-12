@@ -31,64 +31,46 @@ def setup_sim(df_future_res, as_of_date="2017-08-01"):
     while date <= end_date:
 
         date_string = datetime.datetime.strftime(date, format="%Y-%m-%d")
-        tminus = 0
 
         # initialize date dict, which will go into nightly_stats as {'date': {'stat': 'val', 'stat', 'val'}}
         date_stats = defaultdict(int)
 
-        # start on the arrival date and move back
-        # to capture ALL reservations touching 'date' (and not just those that arrive on 'date')
-        for _ in range(max_los):
+        mask = (df_dates.ArrivalDate <= date) & (df_dates.CheckoutDate > date)
 
-            #
-            date_tminus = date - pd.DateOffset(tminus)
+        night_df = df_dates[mask].copy()
+        date_stats["RoomsOTB"] += len(night_df)
+        date_stats["RevOTB"] += night_df.ADR.sum()
+        date_stats["CxlForecast"] += night_df.will_cancel.sum()
 
-            date_tminus_string = datetime.datetime.strftime(
-                date_tminus, format="%Y-%m-%d"
-            )
+        tmp = (
+            night_df[["ResNum", "CustomerType", "ADR", "will_cancel"]]
+            .groupby("CustomerType")
+            .agg({"ResNum": "count", "ADR": "sum", "will_cancel": "sum"})
+            .rename(columns={"ResNum": "RS", "ADR": "Rev", "will_cancel": "CXL"})
+        )
 
-            mask = (
-                (df_dates.ArrivalDate == date_tminus_string)
-                & (df_dates.LOS >= 1 + tminus)
-                & (df_dates.IsCanceled == 0)
-            )
+        if "Transient" in list(tmp.index):
+            date_stats["Trn_RoomsOTB"] += tmp.loc["Transient", "RS"]
+            date_stats["Trn_CxlProj"] += tmp.loc["Transient", "CXL"]
+            date_stats["Trn_RevOTB"] += tmp.loc["Transient", "Rev"]
 
-            date_stats["RoomsOTB"] += len(df_dates[mask])
-            date_stats["RevOTB"] += df_dates[mask].ADR.sum()
-            date_stats["CxlForecast"] += df_dates[mask].will_cancel.sum()
+        if "Transient-Party" in list(tmp.index):
+            date_stats["TrnP_RoomsOTB"] += tmp.loc["Transient-Party", "RS"]
+            date_stats["TrnP_CxlProj"] += tmp.loc["Transient-Party", "CXL"]
+            date_stats["TrnP_RevOTB"] += tmp.loc["Transient-Party", "Rev"]
 
-            tmp = (
-                df_dates[mask][["ResNum", "CustomerType", "ADR", "will_cancel"]]
-                .groupby("CustomerType")
-                .agg({"ResNum": "count", "ADR": "sum", "will_cancel": "sum"})
-                .rename(columns={"ResNum": "RS", "ADR": "Rev", "will_cancel": "CXL"})
-            )
+        if "Group" in list(tmp.index):
+            date_stats["Grp_RoomsOTB"] += tmp.loc["Group", "RS"]
+            date_stats["Grp_CxlProj"] += tmp.loc["Group", "CXL"]
+            date_stats["Grp_RevOTB"] += tmp.loc["Group", "Rev"]
 
-            if "Transient" in list(tmp.index):
-                date_stats["Trn_RoomsOTB"] += tmp.loc["Transient", "RS"]
-                date_stats["Trn_CxlProj"] += tmp.loc["Transient", "CXL"]
-                date_stats["Trn_RevOTB"] += tmp.loc["Transient", "Rev"]
-
-            if "Transient-Party" in list(tmp.index):
-                date_stats["TrnP_RoomsOTB"] += tmp.loc["Transient-Party", "RS"]
-                date_stats["TrnP_CxlProj"] += tmp.loc["Transient-Party", "CXL"]
-                date_stats["TrnP_RevOTB"] += tmp.loc["Transient-Party", "Rev"]
-
-            if "Group" in list(tmp.index):
-                date_stats["Grp_RoomsOTB"] += tmp.loc["Group", "RS"]
-                date_stats["Grp_CxlProj"] += tmp.loc["Group", "CXL"]
-                date_stats["Grp_RevOTB"] += tmp.loc["Group", "Rev"]
-
-            if "Contract" in list(tmp.index):
-                date_stats["Cnt_RoomsOTB"] += tmp.loc["Contract", "RS"]
-                date_stats["Cnt_CxlProj"] += tmp.loc["Contract", "CXL"]
-                date_stats["Cnt_RevOTB"] += tmp.loc["Contract", "Rev"]
-
-            tminus += 1
+        if "Contract" in list(tmp.index):
+            date_stats["Cnt_RoomsOTB"] += tmp.loc["Contract", "RS"]
+            date_stats["Cnt_CxlProj"] += tmp.loc["Contract", "CXL"]
+            date_stats["Cnt_RevOTB"] += tmp.loc["Contract", "Rev"]
 
         nightly_stats[date_string] = dict(date_stats)
         date += delta
-
     return pd.DataFrame(nightly_stats).transpose().fillna(0)
 
 
