@@ -36,10 +36,15 @@ def setup_sim(df_future_res, as_of_date="2017-08-01"):
         date_stats = defaultdict(int)
 
         mask = (
-            (df_dates.ArrivalDate <= date)
-            & (df_dates.CheckoutDate > date)
-            & (df_dates.IsCanceled == 0)
-            & (df_dates.ResMadeDate <= date)
+            (df_dates.ArrivalDate <= date_string)
+            & (df_dates.ResMadeDate <= date_string)
+            & (df_dates.CheckoutDate > date_string)
+        ) & (
+            (df_dates.IsCanceled == 0)
+            | (
+                (df_dates.ReservationStatusDate <= date_string)
+                & (df_dates.IsCanceled == 1)
+            )
         )
 
         night_df = df_dates[mask].copy()
