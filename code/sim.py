@@ -144,27 +144,6 @@ def add_sim_cols(df_sim, df_dbd, capacity):
     return df_sim
 
 
-def apply_STLY_stats(row):
-    """This function will be used in add_stly_cols to add STLY stats to df_sim."""
-
-    # pull stly
-    stly_date = row["STLY_Date"]
-    stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
-
-    otb_res = split_reservations(
-        df_res=df_res,
-        as_of_date=stly_date_str,
-        hotel_num=hotel_num,
-        for_="otb",
-    )
-
-    STLY_OTB = len(otb_res)
-    STLY_ADR = otb_res["ADR"].mean()
-    STLY_REV = otb_res["ADR"].sum()
-
-    return STLY_OTB, STLY_REV, STLY_ADR
-
-
 def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
     """
     Adds the following columns to df_sim:
