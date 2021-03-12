@@ -20,6 +20,7 @@ def setup_sim(df_future_res, as_of_date="2017-08-01"):
         - as_of_date (str ("%Y-%m-%d"), optional): resulting day-by-days DataFrame will start on this day
         - cxl_type (str, optional): either "a" (actual) or "p" (predicted). Default value is "p".
     """
+    print("Parsing reservations...")
     df_dates = df_future_res.copy()
     date = pd.to_datetime(as_of_date, format="%Y-%m-%d")
     end_date = datetime.date(2017, 8, 31)
@@ -42,8 +43,10 @@ def setup_sim(df_future_res, as_of_date="2017-08-01"):
         ) & (
             (df_dates.IsCanceled == 0)
             | (
-                (df_dates.ReservationStatusDate <= date_string)
-                & (df_dates.IsCanceled == 1)
+                (  # only cxls if they have not been canceled yet
+                    (df_dates.IsCanceled == 1)
+                    & (df_dates.ReservationStatusDate >= date_string)
+                )
             )
         )
 
@@ -186,13 +189,13 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         return STLY_OTB, STLY_REV, STLY_ADR, STLY_CxlForecast
 
     num_models = len(df_sim)
-    print(f"Training {num_models} models to obtain STLY statistics.")
+    print(f"Training {num_models} models to obtain STLY statistics...\n")
 
     new_col_names = ["STLY_OTB", "STLY_Rev", "STLY_ADR", "STLY_CxlForecast"]
     df_sim[new_col_names] = df_sim.apply(
         apply_STLY_stats, result_type="expand", axis="columns"
     )
-
+    print("STLY statistics obtained.")
     return df_sim
 
 
@@ -229,7 +232,9 @@ def add_pricing(df_sim):
         price = df_pricing[mask].loc[week_end, "Trn_ADR_OTB"]
         return price
 
+    print("Estimating selling prices...")
     df_sim["SellingPrice"] = df_sim.apply(apply_rates, axis=1)
+    print("Estimated selling prices obtained.")
 
     return df_sim
 
@@ -251,7 +256,8 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     aod_dt = pd.to_datetime(as_of_date)
     min_dt = datetime.date(2016, 7, 1)
     assert aod_dt > min_dt, "as_of_date must be between 7/1/16 and 8/30/17"
-
+    print("Creating crystal ball...")
+    print("Predicting future cancellations...")
     df_future_res = predict_cancellations(df_res, as_of_date, hotel_num)
 
     if hotel_num == 1:
@@ -259,6 +265,7 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     else:
         capacity = h2_capacity
 
+    "Setting up simulation..."
     df_sim = setup_sim(df_future_res, as_of_date)
     df_sim = add_sim_cols(df_sim, df_dbd, capacity)
     df_sim = add_stly_cols(
@@ -270,5 +277,6 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
         capacity,
     )
     df_sim = add_pricing(df_sim)
+    print("The simulation has begun.")
 
     return df_sim
