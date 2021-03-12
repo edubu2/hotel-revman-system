@@ -188,7 +188,6 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
     Adds the following columns to df_sim:
         - Last year actual: Rooms Sold, ADR, Cancellations
         - STLY: RoomsOTB, ADR_OTB, TotalRoomsBooked_L30 & L90
-
     ____
     Parameters:
         - df_sim (pandas.DataFrame, required): simulation DataFrame (future looking)

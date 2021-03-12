@@ -26,7 +26,6 @@ def parse_dates(df_res):
         - New column: 'CheckoutDate'
         - Changed column: 'StatusDate'
     """
-    df_res.loc[0, "Agent"]
     df_res = df_res.replace("       NULL", np.NaN)
 
     df_res["ArrivalDate"] = pd.to_datetime(
