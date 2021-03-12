@@ -32,6 +32,8 @@ def split_reservations(df_res, as_of_date, hotel_num, y_col="IsCanceled", for_="
         features = X2_cxl_cols
 
     as_of_dt = pd.to_datetime(as_of_date, format="%Y-%m-%d")
+    df_res["DaysUntilArrival"] = df_res.ArrivalDate - date
+    features.append("DaysUntilArrival")
 
     if for_ == "model":
         test_mask = (df_res["ResMadeDate"] <= as_of_date) & (
