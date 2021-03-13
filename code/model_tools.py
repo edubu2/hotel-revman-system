@@ -12,33 +12,37 @@ def get_preds(pred_probas, threshold, y_test):
     return df_preds
 
 
-def get_fbeta_score(pred_probas, beta, threshold, y_test):
+def get_fbeta_score(pred_probas, threshold, y_test, beta=0.5):
+    """Returns the F-Beta score at the given threshold & value of beta."""
     df_preds = get_preds(pred_probas, threshold, y_test)
     precision = precision_score(y_test, df_preds["prediction"])
     recall = recall_score(y_test, df_preds["prediction"])
-    try:
-        fbeta_score = ((1 + beta ** 2) * precision * recall) / (
-            beta ** 2 * precision + recall
-        )
-    except:
-        return 0
+    fbeta_score = ((1 + beta ** 2) * precision * recall) / (
+        beta ** 2 * precision + recall
+    )
+
     return round(fbeta_score, 3)
 
 
 def optimize_prob_threshold(
-    model, X_test, y_test, beta=0.5, thresh_start=0.4, thresh_stop=0.95, confusion=False
+    model,
+    X_test,
+    y_test,
+    beta,
+    thresh_start=0.35,
+    thresh_stop=0.75,
+    confusion=False,
 ):
     """
     Takes a trained cancellation XGBoost model and returns the best probability threshold.
     """
     pred_probas = model.predict_proba(X_test)
 
-    thresholds = np.arange(thresh_start, thresh_stop, 0.002)
+    thresholds = np.arange(thresh_start, thresh_stop, 0.01)
     fbetas = {}  # will hold {prob_thresh: resulting_fbeta_score}
 
     for t_val in thresholds:
-
-        fbetas[t_val] = get_fbeta_score(pred_probas, beta, t_val, y_test)
+        fbetas[t_val] = get_fbeta_score(pred_probas, t_val, y_test, beta)
 
     best_thresh = 0
     best_fbeta = 0
