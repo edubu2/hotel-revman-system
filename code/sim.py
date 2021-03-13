@@ -178,6 +178,7 @@ def add_pricing(df_sim):
 
     # df_sim["WeekEndDate"] = df_sim.index + pd.DateOffset(weekday=6)
     df_sim["Date"] = df_sim.index
+    # have to do it this way to prevent performance warning (non-vectorized operation)
     df_sim["WeekEndDate"] = df_sim.apply(
         lambda x: x["Date"] + pd.DateOffset(weekday=6), axis=1
     )
@@ -215,6 +216,9 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         print(f"Predicting cancellations for STLY date {stly_date_str}...")
         stly_otb = predict_cancellations(
             df_res, stly_date_str, hotel_num, confusion=False
+        )
+        mask = (stly_otb["ArrivalDate"] <= stly_date_str) & (
+            stly_otb["CheckoutDate"] > stly_date_str
         )
         stly_sim = setup_sim(stly_otb, df_res, stly_date_str)
         stly_sim = add_sim_cols(stly_sim, df_dbd, capacity)

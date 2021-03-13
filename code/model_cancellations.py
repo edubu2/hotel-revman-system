@@ -22,11 +22,8 @@ def get_otb_res(df_res, as_of_date):
         - as_of_date (required, str): Date of simulation.
             - e.g. "2017-08-15"
     """
-    # assert type(df_res) == "pandas.core.frame.DataFrame", "df_res must be a DataFrame."
-
     otb_mask = (
         (df_res.ResMadeDate <= as_of_date)  # reservations made before AOD
-        # & (df_res.ArrivalDate <= as_of_date)  # arriving before/on AOD
         & (df_res.CheckoutDate > as_of_date)  # checking out after AOD
     ) & (
         (df_res.IsCanceled == 0)
