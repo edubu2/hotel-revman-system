@@ -3,13 +3,15 @@ import numpy as np
 import datetime
 from dateutil.relativedelta import *
 from collections import defaultdict
-from model_cancellations import split_reservations, predict_cancellations
+from model_cancellations import get_otb_res, split_reservations, predict_cancellations
+from dbds import generate_hotel_dfs
+
 
 h1_capacity = 187
 h2_capacity = 226
 
 
-def setup_sim(df_future_res, as_of_date="2017-08-01"):
+def setup_sim(df_future_res, df_res, as_of_date="2017-08-01"):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
 
@@ -36,50 +38,35 @@ def setup_sim(df_future_res, as_of_date="2017-08-01"):
         # initialize date dict, which will go into nightly_stats as {'date': {'stat': 'val', 'stat', 'val'}}
         date_stats = defaultdict(int)
 
-        mask = (
-            (df_dates.ArrivalDate <= date_string)
-            & (df_dates.ResMadeDate <= date_string)
-            & (df_dates.CheckoutDate > date_string)
-        ) & (
-            (df_dates.IsCanceled == 0)
-            | (
-                (  # only cxls if they have not been canceled yet
-                    (df_dates.IsCanceled == 1)
-                    & (df_dates.ReservationStatusDate >= date_string)
-                )
-            )
-        )
-
-        night_df = df_dates[mask].copy()
+        night_df = get_otb_res(df_res, date_string)
         date_stats["RoomsOTB"] += len(night_df)
         date_stats["RevOTB"] += night_df.ADR.sum()
-        date_stats["CxlForecast"] += night_df.will_cancel.sum()
+        try:
+            date_stats["CxlForecast"] += night_df.will_cancel.sum()
+        except:
+            pass
 
         tmp = (
-            night_df[["ResNum", "CustomerType", "ADR", "will_cancel"]]
+            night_df[["ResNum", "CustomerType", "ADR"]]
             .groupby("CustomerType")
-            .agg({"ResNum": "count", "ADR": "sum", "will_cancel": "sum"})
-            .rename(columns={"ResNum": "RS", "ADR": "Rev", "will_cancel": "CXL"})
+            .agg({"ResNum": "count", "ADR": "sum"})
+            .rename(columns={"ResNum": "RS", "ADR": "Rev"})
         )
 
         if "Transient" in list(tmp.index):
             date_stats["Trn_RoomsOTB"] += tmp.loc["Transient", "RS"]
-            date_stats["Trn_CxlProj"] += tmp.loc["Transient", "CXL"]
             date_stats["Trn_RevOTB"] += tmp.loc["Transient", "Rev"]
 
         if "Transient-Party" in list(tmp.index):
             date_stats["TrnP_RoomsOTB"] += tmp.loc["Transient-Party", "RS"]
-            date_stats["TrnP_CxlProj"] += tmp.loc["Transient-Party", "CXL"]
             date_stats["TrnP_RevOTB"] += tmp.loc["Transient-Party", "Rev"]
 
         if "Group" in list(tmp.index):
             date_stats["Grp_RoomsOTB"] += tmp.loc["Group", "RS"]
-            date_stats["Grp_CxlProj"] += tmp.loc["Group", "CXL"]
             date_stats["Grp_RevOTB"] += tmp.loc["Group", "Rev"]
 
         if "Contract" in list(tmp.index):
             date_stats["Cnt_RoomsOTB"] += tmp.loc["Contract", "RS"]
-            date_stats["Cnt_CxlProj"] += tmp.loc["Contract", "CXL"]
             date_stats["Cnt_RevOTB"] += tmp.loc["Contract", "Rev"]
 
         nightly_stats[date_string] = dict(date_stats)
@@ -110,6 +97,7 @@ def add_sim_cols(df_sim, df_dbd, capacity):
     df_sim["RemSupply"] = (
         capacity - df_sim.RoomsOTB.astype(int) + df_sim.CxlForecast.astype(int)
     )
+    # to avoid errors, only operate on existing columns
     # Add ADR by segment
     df_sim["ADR_OTB"] = round(df_sim.RevOTB / df_sim.RoomsOTB, 2)
     try:
@@ -159,47 +147,6 @@ def add_sim_cols(df_sim, df_dbd, capacity):
     return df_sim
 
 
-def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
-    """
-    Adds the following columns to df_sim:
-        - STLY: RoomsOTB, ADR_OTB, TotalRoomsBooked_L30 & L90
-    ____
-    Parameters:
-        - df_sim (pandas.DataFrame, required): simulation DataFrame (future looking)
-        - df_dbd (pandas.DataFrame, required): actual hotel-level data for entire dataset
-    """
-
-    def apply_STLY_stats(row):
-        """This function will be used in add_stly_cols to add STLY stats to df_sim."""
-
-        # pull stly
-        stly_date = row["STLY_Date"]
-        stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
-        print(f"Predicting cancellations for STLY date {stly_date_str}...")
-        stly_future_res = predict_cancellations(
-            df_res, stly_date_str, hotel_num, confusion=False
-        )
-        stly_sim = setup_sim(stly_future_res, stly_date_str)
-        stly_sim = add_sim_cols(stly_sim, df_dbd, capacity)
-
-        STLY_OTB = stly_sim.loc[stly_date_str, "RoomsOTB"]
-        STLY_REV = stly_sim.loc[stly_date_str, "RevOTB"]
-        STLY_ADR = round(STLY_REV / STLY_OTB, 2)
-        STLY_CxlForecast = stly_sim.loc[stly_date_str, "CxlForecast"]
-
-        return STLY_OTB, STLY_REV, STLY_ADR, STLY_CxlForecast
-
-    num_models = len(df_sim)
-    print(f"Training {num_models} models to obtain STLY statistics...\n")
-
-    new_col_names = ["STLY_OTB", "STLY_Rev", "STLY_ADR", "STLY_CxlForecast"]
-    df_sim[new_col_names] = df_sim.apply(
-        apply_STLY_stats, result_type="expand", axis="columns"
-    )
-    print("\nSTLY statistics obtained.\n")
-    return df_sim
-
-
 def add_pricing(df_sim):
     """
     Adds 'SellingPrice' column to df_sim.
@@ -239,6 +186,46 @@ def add_pricing(df_sim):
     return df_sim
 
 
+def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
+    """
+    Adds the following columns to df_sim:
+        - STLY: RoomsOTB, ADR_OTB, TotalRoomsBooked_L30 & L90
+    ____
+    Parameters:
+        - df_sim (pandas.DataFrame, required): simulation DataFrame (future looking)
+        - df_dbd (pandas.DataFrame, required): actual hotel-level data for entire dataset
+    """
+
+    def apply_STLY_stats(row):
+        """This function will be used in add_stly_cols to add STLY stats to df_sim."""
+
+        # pull stly
+        stly_date = row["STLY_Date"]
+        stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
+        # print(f"Predicting cancellations for STLY date {stly_date_str}...")
+        stly_res_otb = get_otb_res(df_res, stly_date_str)
+        stly_sim = setup_sim(stly_res_otb, df_res, stly_date_str)
+        stly_sim = add_sim_cols(stly_sim, df_dbd, capacity)
+
+        STLY_OTB = stly_sim.loc[stly_date_str, "RoomsOTB"]
+        STLY_REV = stly_sim.loc[stly_date_str, "RevOTB"]
+        STLY_ADR = round(STLY_REV / STLY_OTB, 2)
+        STLY_SELLPRICE = stly_sim.loc[stly_date_str, "RevOTB"]
+        # STLY_CxlForecast = stly_sim.loc[stly_date_str, "CxlForecast"]
+
+        return STLY_OTB, STLY_REV, STLY_ADR, STLY_SELLPRICE  # , STLY_CxlForecast
+
+    num_models = len(df_sim)
+    # print(f"Training {num_models} models to obtain STLY statistics...\n")
+
+    new_col_names = ["STLY_OTB", "STLY_Rev", "STLY_ADR", "STLY_SellingPrice"]
+    df_sim[new_col_names] = df_sim.apply(
+        apply_STLY_stats, result_type="expand", axis="columns"
+    )
+    print("\nSTLY statistics obtained.\n")
+    return df_sim
+
+
 def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
@@ -256,9 +243,9 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     aod_dt = pd.to_datetime(as_of_date)
     min_dt = datetime.date(2016, 7, 1)
     assert aod_dt > min_dt, "as_of_date must be between 7/1/16 and 8/30/17"
-    print("Creating crystal ball...")
-    print("Predicting future cancellations...")
-    df_future_res = predict_cancellations(df_res, as_of_date, hotel_num)
+    # print("Preparing crystal ball...")
+    # print("Predicting future cancellations...")
+    df_otb = get_otb_res(df_res, as_of_date)
 
     if hotel_num == 1:
         capacity = h1_capacity
@@ -266,8 +253,13 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
         capacity = h2_capacity
 
     "Setting up simulation..."
-    df_sim = setup_sim(df_future_res, as_of_date)
+    df_sim = setup_sim(
+        df_otb,
+        df_res,
+        as_of_date,
+    )
     df_sim = add_sim_cols(df_sim, df_dbd, capacity)
+    df_sim = add_pricing(df_sim)
     df_sim = add_stly_cols(
         df_sim,
         df_dbd,
@@ -276,7 +268,7 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
         as_of_date,
         capacity,
     )
-    df_sim = add_pricing(df_sim)
+
     print("Simulation setup complete!\n")
     print(
         f"Ignore red warning below. Operation was only applied to {len(df_sim)} rows."
