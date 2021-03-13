@@ -6,6 +6,9 @@ from sklearn.metrics import precision_score, recall_score, confusion_matrix
 
 
 def get_preds(pred_probas, threshold, y_test):
+    """
+    Generates a DataFrame containing the probabilities that each reservation will not cancel, and the probabilities that they will cancel.
+    """
     df_preds = pd.DataFrame(pred_probas, columns=["no_cxl_proba", "cxl_proba"])
     df_preds["prediction"] = df_preds["cxl_proba"] >= threshold
     df_preds["actual"] = y_test.to_numpy()
@@ -76,6 +79,9 @@ def make_confusion_matrix(
     title=None,
     facecolor="#5c5c5c",
 ):
+    """
+    Outputs a confusion matrix for the cancellation predictions.
+    """
     # Predict class 1 if probability of being in class 1 is greater than threshold
     # (model.predict(X_test) does this automatically with a threshold of 0.5)
 
