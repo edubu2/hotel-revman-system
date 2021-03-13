@@ -315,7 +315,7 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     min_dt = datetime.date(2016, 7, 1)
     assert aod_dt > min_dt, "as_of_date must be between 7/1/16 and 8/30/17"
     print("Preparing crystal ball...")
-    print("Predicting future cancellations...")
+    print("Predicting cancellations on all future reservations...")
     # df_otb = get_otb_res(df_res, as_of_date)
     df_otb = predict_cancellations(df_res, as_of_date, hotel_num, print_len=True)
 
@@ -324,13 +324,14 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     else:
         capacity = h2_capacity
 
-    "Setting up simulation..."
+    print("Setting up simulation...")
     df_sim = setup_sim(
         df_otb,
         df_res,
         as_of_date,
     )
     df_sim = add_sim_cols(df_sim, df_dbd, capacity)
+    print("Estimating prices...")
     df_sim = add_pricing(df_sim)
     df_sim = add_stly_cols(
         df_sim,
@@ -342,7 +343,4 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     )
 
     print("Simulation setup complete!\n")
-    print(
-        f"Ignore red warning below. Operation was only applied to {len(df_sim)} rows."
-    )
     return df_sim
