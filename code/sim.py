@@ -12,9 +12,9 @@ from collections import defaultdict
 import datetime
 import pandas as pd
 import numpy as np
-
+from dateutil.relativedelta import relativedelta
+from res_stats import aggregate_reservations
 from model_cancellations import get_otb_res, predict_cancellations
-from stly import add_stly_cols
 
 H1_CAPACITY = 187
 H2_CAPACITY = 226
@@ -50,51 +50,85 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
         date_string = datetime.datetime.strftime(date, format="%Y-%m-%d")
         # initialize date dict, which will go into nightly_stats as:
         # {'date': {'stat': 'val', 'stat', 'val'}}
-        date_stats = defaultdict(int)
         night_df = get_otb_res(df_res, date_string)
+
         mask = (night_df.ArrivalDate <= date_string) & (
             night_df.CheckoutDate > date_string
         )
+
         night_df = night_df[mask].copy()
-        date_stats["RoomsOTB"] += len(night_df)
-        date_stats["RevOTB"] += night_df.ADR.sum()
-        try:
-            date_stats["CxlForecast"] += night_df.will_cancel.sum()
-        except:
-            pass
 
-        tmp = (
-            night_df[["ResNum", "CustomerType", "ADR", "will_cancel"]]
-            .groupby("CustomerType")
-            .agg({"ResNum": "count", "ADR": "sum", "will_cancel": "sum"})
-            .rename(columns={"ResNum": "RS", "ADR": "Rev", "will_cancel": "CXL"})
-        )
-
-        if "Transient" in list(tmp.index):
-            date_stats["Trn_RoomsOTB"] += tmp.loc["Transient", "RS"]
-            date_stats["Trn_RevOTB"] += tmp.loc["Transient", "Rev"]
-            date_stats["Trn_CxlForecast"] += tmp.loc["Transient", "CXL"]
-
-        if "Transient-Party" in list(tmp.index):
-            date_stats["TrnP_RoomsOTB"] += tmp.loc["Transient-Party", "RS"]
-            date_stats["TrnP_RevOTB"] += tmp.loc["Transient-Party", "Rev"]
-            date_stats["TrnP_CxlForecast"] += tmp.loc["Transient-Party", "CXL"]
-
-        if "Group" in list(tmp.index):
-            date_stats["Grp_RoomsOTB"] += tmp.loc["Group", "RS"]
-            date_stats["Grp_RevOTB"] += tmp.loc["Group", "Rev"]
-            date_stats["Grp_CxlForecast"] += tmp.loc["Group", "CXL"]
-
-        if "Contract" in list(tmp.index):
-            date_stats["Cnt_RoomsOTB"] += tmp.loc["Contract", "RS"]
-            date_stats["Cnt_RevOTB"] += tmp.loc["Contract", "Rev"]
-            date_stats["Cnt_CxlForecast"] += tmp.loc["Contract", "CXL"]
-
+        date_stats = aggregate_reservations(night_df, date_string)
         nightly_stats[date_string] = dict(date_stats)
         date += delta
 
     df_sim = pd.DataFrame(nightly_stats).transpose().fillna(0)
+    # df_sim["WeekEndDate"] = df_sim.index + pd.DateOffset(weekday=6)
+    df_sim.index = pd.to_datetime(df_sim.index, format="%Y-%m-%d")
+    df_sim["Date"] = pd.to_datetime(df_sim.index, format="%Y-%m-%d")
+    # have to do it this way to prevent performance warning (non-vectorized operation)
+    df_sim["WeekEndDate"] = df_sim.apply(
+        lambda x: x["Date"] + pd.DateOffset(weekday=6), axis=1
+    )
+
+    dow = pd.to_datetime(df_sim.index, format="%Y-%m-%d")
+    dow = dow.strftime("%a")
+    df_sim.insert(0, "DOW", dow)
+    df_sim["WE"] = (df_sim.DOW == "Fri") | (df_sim.DOW == "Sat")
+    df_sim["WD"] = df_sim.WE is False
+
+    # add STLY date
+    stly_lambda = lambda x: pd.to_datetime(x) + relativedelta(
+        years=-1, weekday=pd.to_datetime(x).weekday()
+    )
+
+    df_sim["STLY_Date"] = pd.to_datetime(
+        df_sim.index.map(stly_lambda), format="%Y-%m-%d"
+    )
+
     return df_sim
+
+
+def aggregate_reservations(night_df, date_string):
+    """
+    Takes a reservations DataFrame containing all reservations for a certain day and returns a dictionary of it's contents.
+    ______
+    Parameters:
+        - night_df (pd.DataFrame, required): All OTB reservations that are touching as_of_date.
+        - date_string (required, "%Y-%m-%d")
+    """
+    date_stats = defaultdict(int)
+    date_stats["RoomsOTB"] += len(night_df)
+    date_stats["RevOTB"] += night_df.ADR.sum()
+    date_stats["CxlForecast"] += night_df.will_cancel.sum()
+    tmp = (
+        night_df[["ResNum", "CustomerType", "ADR", "will_cancel"]]
+        .groupby("CustomerType")
+        .agg({"ResNum": "count", "ADR": "sum", "will_cancel": "sum"})
+        .rename(columns={"ResNum": "RS", "ADR": "Rev", "will_cancel": "CXL"})
+    )
+
+    if "Transient" in list(tmp.index):
+        date_stats["Trn_RoomsOTB"] += tmp.loc["Transient", "RS"]
+        date_stats["Trn_RevOTB"] += tmp.loc["Transient", "Rev"]
+        date_stats["Trn_CxlForecast"] += tmp.loc["Transient", "CXL"]
+
+    if "Transient-Party" in list(tmp.index):
+        date_stats["TrnP_RoomsOTB"] += tmp.loc["Transient-Party", "RS"]
+        date_stats["TrnP_RevOTB"] += tmp.loc["Transient-Party", "Rev"]
+        date_stats["TrnP_CxlForecast"] += tmp.loc["Transient-Party", "CXL"]
+
+    if "Group" in list(tmp.index):
+        date_stats["Grp_RoomsOTB"] += tmp.loc["Group", "RS"]
+        date_stats["Grp_RevOTB"] += tmp.loc["Group", "Rev"]
+        date_stats["Grp_CxlForecast"] += tmp.loc["Group", "CXL"]
+
+    if "Contract" in list(tmp.index):
+        date_stats["Cnt_RoomsOTB"] += tmp.loc["Contract", "RS"]
+        date_stats["Cnt_RevOTB"] += tmp.loc["Contract", "Rev"]
+        date_stats["Cnt_CxlForecast"] += tmp.loc["Contract", "CXL"]
+
+    return date_stats
 
 
 def add_sim_cols(df_sim, df_dbd, capacity):
@@ -140,20 +174,6 @@ def add_sim_cols(df_sim, df_dbd, capacity):
     except:
         pass
 
-    dow = pd.to_datetime(df_sim.index, format="%Y-%m-%d")
-    dow = dow.strftime("%a")
-    df_sim.insert(0, "DOW", dow)
-    df_sim["WE"] = (df_sim.DOW == "Fri") | (df_sim.DOW == "Sat")
-    df_sim["WD"] = df_sim.WE is False
-
-    # add STLY date
-    stly_lambda = lambda x: pd.to_datetime(x) + relativedelta(
-        years=-1, weekday=pd.to_datetime(x).weekday()
-    )
-    df_sim["STLY_Date"] = pd.to_datetime(
-        df_sim.index.map(stly_lambda), format="%Y-%m-%d"
-    )
-
     def apply_ly_cols(row):
         stly_date = row["STLY_Date"]
         stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
@@ -193,13 +213,6 @@ def add_pricing(df_sim):
     )
     df_pricing.index = df_pricing.Date
 
-    # df_sim["WeekEndDate"] = df_sim.index + pd.DateOffset(weekday=6)
-    df_sim["Date"] = df_sim.index
-    # have to do it this way to prevent performance warning (non-vectorized operation)
-    df_sim["WeekEndDate"] = df_sim.apply(
-        lambda x: x["Date"] + pd.DateOffset(weekday=6), axis=1
-    )
-
     # apply the weekly WD/WE prices to the original df_sim
     def apply_rates(row):
         wd = row["WD"] == 1
@@ -210,6 +223,137 @@ def add_pricing(df_sim):
 
     df_sim["SellingPrice"] = df_sim.apply(apply_rates, axis=1)
 
+    return df_sim
+
+
+def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
+    """
+    Adds the following columns to df_sim:
+        - STLY: RoomsOTB, ADR_OTB, TotalRoomsBooked_L30 & L90
+    ____
+    Parameters:
+        - df_sim (pandas.DataFrame, required): simulation DataFrame (future looking)
+        - df_dbd (pandas.DataFrame, required): actual hotel-level data for entire dataset
+    """
+
+    def apply_STLY_stats(row):
+        """This function will be used in add_stly_cols to add STLY stats to df_sim."""
+
+        # pull stly
+        stly_date = row["STLY_Date"]
+        stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
+        print(f"Predicting cancellations as of STLY date {stly_date_str}...")
+        stly_otb = predict_cancellations(
+            df_res, stly_date_str, hotel_num, confusion=False
+        )
+        mask = (stly_otb["ArrivalDate"] <= stly_date_str) & (
+            stly_otb["CheckoutDate"] > stly_date_str
+        )
+
+        stly_otb = stly_otb[mask].copy()
+        stly_sim = setup_sim(stly_otb, df_res, stly_date_str)
+        stly_sim = add_pricing(stly_sim)
+        STLY_OTB = float(stly_sim.loc[stly_date_str, "RoomsOTB"])
+        STLY_REV = float(stly_sim.loc[stly_date_str, "RevOTB"])
+        STLY_ADR = round(STLY_REV / STLY_OTB, 2)
+        STLY_SELLPRICE = float(stly_sim.loc[stly_date_str, "SellingPrice"])
+        STLY_CxlForecast = float(stly_sim.loc[stly_date_str, "CxlForecast"])
+
+        try:
+            STLY_TRN_OTB = float(stly_sim.loc[stly_date_str, "Trn_RoomsOTB"])
+            STLY_TRN_REV = float(stly_sim.loc[stly_date_str, "Trn_RevOTB"])
+            STLY_TRN_ADR = round(STLY_TRN_REV / STLY_TRN_OTB, 2)
+            STLY_TRN_CXL = float(stly_sim.loc[stly_date_str, "Trn_CxlForecast"])
+        except:
+            STLY_TRN_OTB = 0
+            STLY_TRN_REV = 0
+            STLY_TRN_ADR = 0
+            STLY_TRN_CXL = 0
+        try:
+            STLY_TRNP_OTB = float(stly_sim.loc[stly_date_str, "TrnP_RoomsOTB"])
+            STLY_TRNP_REV = float(stly_sim.loc[stly_date_str, "TrnP_RevOTB"])
+            STLY_TRNP_ADR = round(STLY_TRNP_REV / STLY_TRNP_OTB, 2)
+            STLY_TRNP_CXL = float(stly_sim.loc[stly_date_str, "TrnP_CxlForecast"])
+        except:
+            STLY_TRNP_OTB = 0
+            STLY_TRNP_REV = 0
+            STLY_TRNP_ADR = 0
+            STLY_TRNP_CXL = 0
+        try:
+            STLY_GRP_OTB = float(stly_sim.loc[stly_date_str, "Grp_RoomsOTB"])
+            STLY_GRP_REV = float(stly_sim.loc[stly_date_str, "Grp_RevOTB"])
+            STLY_GRP_ADR = round(STLY_GRP_REV / STLY_GRP_OTB, 2)
+            STLY_GRP_CXL = float(stly_sim.loc[stly_date_str, "Grp_CxlForecast"])
+        except:
+            STLY_GRP_OTB = 0
+            STLY_GRP_REV = 0
+            STLY_GRP_ADR = 0
+            STLY_GRP_CXL = 0
+        try:
+            STLY_CNT_OTB = float(stly_sim.loc[stly_date_str, "Cnt_RoomsOTB"])
+            STLY_CNT_REV = float(stly_sim.loc[stly_date_str, "Cnt_RevOTB"])
+            STLY_CNT_ADR = round(STLY_CNT_REV / STLY_CNT_OTB, 2)
+            STLY_CNT_CXL = float(stly_sim.loc[stly_date_str, "Cnt_CxlForecast"])
+        except:
+            STLY_CNT_OTB = 0
+            STLY_CNT_REV = 0
+            STLY_CNT_ADR = 0
+            STLY_CNT_CXL = 0
+
+        return (
+            STLY_OTB,
+            STLY_REV,
+            STLY_ADR,
+            STLY_SELLPRICE,
+            STLY_CxlForecast,
+            STLY_TRN_OTB,
+            STLY_TRN_REV,
+            STLY_TRN_ADR,
+            STLY_TRN_CXL,
+            STLY_TRNP_OTB,
+            STLY_TRNP_REV,
+            STLY_TRNP_ADR,
+            STLY_TRNP_CXL,
+            STLY_GRP_OTB,
+            STLY_GRP_REV,
+            STLY_GRP_ADR,
+            STLY_GRP_CXL,
+            STLY_CNT_OTB,
+            STLY_CNT_REV,
+            STLY_CNT_ADR,
+            STLY_CNT_CXL,
+        )
+
+    num_models = len(df_sim)
+    print(f"Training {num_models} models to obtain STLY statistics...\n")
+
+    new_col_names = [
+        "STLY_OTB",
+        "STLY_Rev",
+        "STLY_ADR",
+        "STLY_SellingPrice",
+        "STLY_CxlForecast",
+        "STLY_TRN_OTB",
+        "STLY_TRN_REV",
+        "STLY_TRN_ADR",
+        "STLY_TRN_CXL",
+        "STLY_TRNP_OTB",
+        "STLY_TRNP_REV",
+        "STLY_TRNP_ADR",
+        "STLY_TRNP_CXL",
+        "STLY_GRP_OTB",
+        "STLY_GRP_REV",
+        "STLY_GRP_ADR",
+        "STLY_GRP_CXL",
+        "STLY_CNT_OTB",
+        "STLY_CNT_REV",
+        "STLY_CNT_ADR",
+        "STLY_CNT_CXL",
+    ]
+    df_sim[new_col_names] = df_sim.apply(
+        apply_STLY_stats, result_type="expand", axis="columns"
+    )
+    print("\nSTLY statistics obtained.\n")
     return df_sim
 
 
