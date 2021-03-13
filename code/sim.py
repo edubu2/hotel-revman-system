@@ -51,27 +51,31 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
             pass
 
         tmp = (
-            night_df[["ResNum", "CustomerType", "ADR"]]
+            night_df[["ResNum", "CustomerType", "ADR", "will_cancel"]]
             .groupby("CustomerType")
-            .agg({"ResNum": "count", "ADR": "sum"})
-            .rename(columns={"ResNum": "RS", "ADR": "Rev"})
+            .agg({"ResNum": "count", "ADR": "sum", "will_cancel": "sum"})
+            .rename(columns={"ResNum": "RS", "ADR": "Rev", "will_cancel": "CXL"})
         )
 
         if "Transient" in list(tmp.index):
             date_stats["Trn_RoomsOTB"] += tmp.loc["Transient", "RS"]
             date_stats["Trn_RevOTB"] += tmp.loc["Transient", "Rev"]
+            date_stats["Trn_CxlForecast"] += tmp.loc["Transient", "CXL"]
 
         if "Transient-Party" in list(tmp.index):
             date_stats["TrnP_RoomsOTB"] += tmp.loc["Transient-Party", "RS"]
             date_stats["TrnP_RevOTB"] += tmp.loc["Transient-Party", "Rev"]
+            date_stats["TrnP_CxlForecast"] += tmp.loc["Transient-Party", "CXL"]
 
         if "Group" in list(tmp.index):
             date_stats["Grp_RoomsOTB"] += tmp.loc["Group", "RS"]
             date_stats["Grp_RevOTB"] += tmp.loc["Group", "Rev"]
+            date_stats["Grp_CxlForecast"] += tmp.loc["Group", "CXL"]
 
         if "Contract" in list(tmp.index):
             date_stats["Cnt_RoomsOTB"] += tmp.loc["Contract", "RS"]
             date_stats["Cnt_RevOTB"] += tmp.loc["Contract", "Rev"]
+            date_stats["Cnt_CxlForecast"] += tmp.loc["Contract", "CXL"]
 
         nightly_stats[date_string] = dict(date_stats)
         date += delta
@@ -234,27 +238,35 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         try:
             STLY_TRN_OTB = stly_sim.loc[stly_date_str, "Trn_RoomsOTB"]
             STLY_TRN_REV = stly_sim.loc[stly_date_str, "Trn_RevOTB"]
+            STLY_TRN_CXL = stly_sim.loc[stly_date_str, "Trn_CxlForecast"]
         except:
             STLY_TRN_OTB = 0
             STLY_TRN_REV = 0
+            STLY_TRN_CXL = 0
         try:
             STLY_TRNP_OTB = stly_sim.loc[stly_date_str, "TrnP_RoomsOTB"]
             STLY_TRNP_REV = stly_sim.loc[stly_date_str, "TrnP_RevOTB"]
+            STLY_TRNP_CXL = stly_sim.loc[stly_date_str, "TrnP_CxlForecast"]
         except:
             STLY_TRNP_OTB = 0
             STLY_TRNP_REV = 0
+            STLY_TRNP_CXL = 0
         try:
             STLY_GRP_OTB = stly_sim.loc[stly_date_str, "Grp_RoomsOTB"]
             STLY_GRP_REV = stly_sim.loc[stly_date_str, "Grp_RevOTB"]
+            STLY_GRP_CXL = stly_sim.loc[stly_date_str, "Grp_CxlForecast"]
         except:
             STLY_GRP_OTB = 0
             STLY_GRP_REV = 0
+            STLY_GRP_CXL = 0
         try:
             STLY_CNT_OTB = stly_sim.loc[stly_date_str, "Cnt_RoomsOTB"]
             STLY_CNT_REV = stly_sim.loc[stly_date_str, "Cnt_RevOTB"]
+            STLY_CNT_CXL = stly_sim.loc[stly_date_str, "Cnt_CxlForecast"]
         except:
             STLY_CNT_OTB = 0
             STLY_CNT_REV = 0
+            STLY_CNT_CXL = 0
 
         return (
             STLY_OTB,
@@ -264,18 +276,22 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
             STLY_CxlForecast,
             STLY_TRN_OTB,
             STLY_TRN_REV,
+            STLY_TRN_CXL,
             STLY_TRNP_OTB,
             STLY_TRNP_REV,
+            STLY_TRNP_CXL,
             STLY_GRP_OTB,
             STLY_GRP_REV,
+            STLY_GRP_CXL,
             STLY_CNT_OTB,
             STLY_CNT_REV,
+            STLY_CNT_CXL,
         )
 
     num_models = len(df_sim)
     print(f"Training {num_models} models to obtain STLY statistics...\n")
 
-    new_col_names = 
+    new_col_names = [
         "STLY_OTB",
         "STLY_Rev",
         "STLY_ADR",
@@ -283,12 +299,16 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         "STLY_CxlForecast",
         "STLY_TRN_OTB",
         "STLY_TRN_REV",
+        "STLY_TRN_CXL",
         "STLY_TRNP_OTB",
         "STLY_TRNP_REV",
+        "STLY_TRNP_CXL",
         "STLY_GRP_OTB",
         "STLY_GRP_REV",
+        "STLY_GRP_CXL",
         "STLY_CNT_OTB",
         "STLY_CNT_REV",
+        "STLY_CNT_CXL",
     ]
     df_sim[new_col_names] = df_sim.apply(
         apply_STLY_stats, result_type="expand", axis="columns"
