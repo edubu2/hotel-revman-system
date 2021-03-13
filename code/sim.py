@@ -11,7 +11,7 @@ h1_capacity = 187
 h2_capacity = 226
 
 
-def setup_sim(df_future_res, df_res, as_of_date="2017-08-01"):
+def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
 
@@ -23,7 +23,7 @@ def setup_sim(df_future_res, df_res, as_of_date="2017-08-01"):
         - cxl_type (str, optional): either "a" (actual) or "p" (predicted). Default value is "p".
     """
 
-    df_dates = df_future_res.copy()
+    df_dates = df_otb.copy()
     date = pd.to_datetime(as_of_date, format="%Y-%m-%d")
     end_date = datetime.date(2017, 8, 31)
     delta = datetime.timedelta(days=1)
@@ -39,6 +39,10 @@ def setup_sim(df_future_res, df_res, as_of_date="2017-08-01"):
         date_stats = defaultdict(int)
 
         night_df = get_otb_res(df_res, date_string)
+        mask = (night_df.ArrivalDate <= date_string) & (
+            night_df.CheckoutDate > date_string
+        )
+        night_df = night_df[mask].copy()
         date_stats["RoomsOTB"] += len(night_df)
         date_stats["RevOTB"] += night_df.ADR.sum()
         try:
@@ -71,7 +75,9 @@ def setup_sim(df_future_res, df_res, as_of_date="2017-08-01"):
 
         nightly_stats[date_string] = dict(date_stats)
         date += delta
-    return pd.DataFrame(nightly_stats).transpose().fillna(0)
+
+    df_sim = pd.DataFrame(nightly_stats).transpose().fillna(0)
+    return df_sim
 
 
 def add_sim_cols(df_sim, df_dbd, capacity):
@@ -127,7 +133,9 @@ def add_sim_cols(df_sim, df_dbd, capacity):
     stly_lambda = lambda x: pd.to_datetime(x) + relativedelta(
         years=-1, weekday=pd.to_datetime(x).weekday()
     )
-    df_sim["STLY_Date"] = df_sim.index.map(stly_lambda)
+    df_sim["STLY_Date"] = pd.to_datetime(
+        df_sim.index.map(stly_lambda), format="%Y-%m-%d"
+    )
 
     def apply_ly_cols(row):
         stly_date = row["STLY_Date"]
@@ -155,7 +163,7 @@ def add_pricing(df_sim):
     This gives us an indication of what the hotel's online selling prices.
     """
     # get average WD/WE pricing for each week
-    df_sim.index = pd.to_datetime(df_sim.index)
+    df_sim.index = pd.to_datetime(df_sim.index, format="%Y-%m-%d")
     df_pricing = (
         df_sim[["Trn_RoomsOTB", "Trn_RevOTB", "WD"]]
         .groupby([pd.Grouper(freq="1W"), "WD"])
@@ -168,7 +176,11 @@ def add_pricing(df_sim):
     )
     df_pricing.index = df_pricing.Date
 
-    df_sim["WeekEndDate"] = df_sim.index + pd.DateOffset(weekday=6)
+    # df_sim["WeekEndDate"] = df_sim.index + pd.DateOffset(weekday=6)
+    df_sim["Date"] = df_sim.index
+    df_sim["WeekEndDate"] = df_sim.apply(
+        lambda x: x["Date"] + pd.DateOffset(weekday=6), axis=1
+    )
 
     # apply the weekly WD/WE prices to the original df_sim
     def apply_rates(row):
@@ -179,9 +191,7 @@ def add_pricing(df_sim):
         price = df_pricing[mask].loc[week_end, "Trn_ADR_OTB"]
         return price
 
-    print("Estimating selling prices...")
     df_sim["SellingPrice"] = df_sim.apply(apply_rates, axis=1)
-    print("Estimated selling prices obtained.")
 
     return df_sim
 
@@ -202,23 +212,38 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         # pull stly
         stly_date = row["STLY_Date"]
         stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
-        # print(f"Predicting cancellations for STLY date {stly_date_str}...")
-        stly_res_otb = get_otb_res(df_res, stly_date_str)
-        stly_sim = setup_sim(stly_res_otb, df_res, stly_date_str)
+        print(f"Predicting cancellations for STLY date {stly_date_str}...")
+        stly_otb = predict_cancellations(
+            df_res, stly_date_str, hotel_num, confusion=False
+        )
+        stly_sim = setup_sim(stly_otb, df_res, stly_date_str)
         stly_sim = add_sim_cols(stly_sim, df_dbd, capacity)
+        stly_sim = add_pricing(stly_sim)
 
         STLY_OTB = stly_sim.loc[stly_date_str, "RoomsOTB"]
         STLY_REV = stly_sim.loc[stly_date_str, "RevOTB"]
         STLY_ADR = round(STLY_REV / STLY_OTB, 2)
-        STLY_SELLPRICE = stly_sim.loc[stly_date_str, "RevOTB"]
-        # STLY_CxlForecast = stly_sim.loc[stly_date_str, "CxlForecast"]
+        STLY_SELLPRICE = stly_sim.loc[stly_date_str, "SellingPrice"]
+        STLY_CxlForecast = stly_sim.loc[stly_date_str, "CxlForecast"]
 
-        return STLY_OTB, STLY_REV, STLY_ADR, STLY_SELLPRICE  # , STLY_CxlForecast
+        return (
+            STLY_OTB,
+            STLY_REV,
+            STLY_ADR,
+            STLY_SELLPRICE,
+            STLY_CxlForecast,
+        )
 
     num_models = len(df_sim)
-    # print(f"Training {num_models} models to obtain STLY statistics...\n")
+    print(f"Training {num_models} models to obtain STLY statistics...\n")
 
-    new_col_names = ["STLY_OTB", "STLY_Rev", "STLY_ADR", "STLY_SellingPrice"]
+    new_col_names = [
+        "STLY_OTB",
+        "STLY_Rev",
+        "STLY_ADR",
+        "STLY_SellingPrice",
+        "STLY_CxlForecast",
+    ]
     df_sim[new_col_names] = df_sim.apply(
         apply_STLY_stats, result_type="expand", axis="columns"
     )
@@ -234,18 +259,19 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
 
     ____
     Parameters:
-        - df_future_res (pandas.DataFrame, required): reservations dataframe (with proj. cancels) generated
-          from the functions in setup.py and model_cancellations.py
+        - df_dbd (DataFrame, required)
         - as_of_date (str "%Y-%m-%d", required): date of simulation
         - hotel_num (int, required): 1 for h1 and 2 for h2
+        - df_res (DataFrame, required)
     """
     assert hotel_num in [1, 2], "Invalid hotel_num."
-    aod_dt = pd.to_datetime(as_of_date)
+    aod_dt = pd.to_datetime(as_of_date, format="%Y-%m-%d")
     min_dt = datetime.date(2016, 7, 1)
     assert aod_dt > min_dt, "as_of_date must be between 7/1/16 and 8/30/17"
-    # print("Preparing crystal ball...")
-    # print("Predicting future cancellations...")
-    df_otb = get_otb_res(df_res, as_of_date)
+    print("Preparing crystal ball...")
+    print("Predicting future cancellations...")
+    # df_otb = get_otb_res(df_res, as_of_date)
+    df_otb = predict_cancellations(df_res, as_of_date, hotel_num, print_len=True)
 
     if hotel_num == 1:
         capacity = h1_capacity

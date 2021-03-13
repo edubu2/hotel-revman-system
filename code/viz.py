@@ -16,9 +16,12 @@ def get_fbeta_score(pred_probas, beta, threshold, y_test):
     df_preds = get_preds(pred_probas, threshold, y_test)
     precision = precision_score(y_test, df_preds["prediction"])
     recall = recall_score(y_test, df_preds["prediction"])
-    fbeta_score = ((1 + beta ** 2) * precision * recall) / (
-        beta ** 2 * precision + recall
-    )
+    try:
+        fbeta_score = ((1 + beta ** 2) * precision * recall) / (
+            beta ** 2 * precision + recall
+        )
+    except:
+        return 0
     return round(fbeta_score, 3)
 
 
@@ -26,7 +29,7 @@ def optimize_prob_threshold(
     model, X_test, y_test, beta=0.5, thresh_start=0.4, thresh_stop=0.95, confusion=False
 ):
     """
-    Takes a trained cancellation XGBoost model and returns X_test, with predictions column (will_cancel)
+    Takes a trained cancellation XGBoost model and returns the best probability threshold.
     """
     pred_probas = model.predict_proba(X_test)
 
@@ -34,6 +37,7 @@ def optimize_prob_threshold(
     fbetas = {}  # will hold {prob_thresh: resulting_fbeta_score}
 
     for t_val in thresholds:
+
         fbetas[t_val] = get_fbeta_score(pred_probas, beta, t_val, y_test)
 
     best_thresh = 0

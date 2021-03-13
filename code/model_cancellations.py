@@ -15,6 +15,7 @@ from viz import (
 def get_otb_res(df_res, as_of_date):
     """
     Takes a list of reservations and returns all reservations on-the-books (OTB) as of a given date (df_otb).
+
     _____
     Parameters:
         - df_res (required): cleaned reservations DataFrame
@@ -22,19 +23,16 @@ def get_otb_res(df_res, as_of_date):
             - e.g. "2017-08-15"
     """
     # assert type(df_res) == "pandas.core.frame.DataFrame", "df_res must be a DataFrame."
-    as_of_dt = pd.to_datetime(as_of_date)
+
     otb_mask = (
         (df_res.ResMadeDate <= as_of_date)  # reservations made before AOD
-        & (df_res.ArrivalDate <= as_of_date)  # arriving before/on AOD
+        # & (df_res.ArrivalDate <= as_of_date)  # arriving before/on AOD
         & (df_res.CheckoutDate > as_of_date)  # checking out after AOD
     ) & (
-        (
-            (df_res.ReservationStatus != "Canceled")
-            | (
-                (  # only include cxls that have not been canceled yet
-                    (df_res.IsCanceled == 1)
-                    & (df_res.ReservationStatusDate >= as_of_date)
-                )
+        (df_res.IsCanceled == 0)
+        | (
+            (  # only include cxls that have not been canceled yet
+                (df_res.IsCanceled == 1) & (df_res.ReservationStatusDate >= as_of_date)
             )
         )
     )
@@ -53,15 +51,20 @@ def split_reservations(df_res, as_of_date, features, print_len):
         - as_of_date (required, str, "%Y-%m-%d"): Date that represents 'today' for Rev Management simulation
         - features (required, list): Hotel-specific, imported from features.py
         - print_len(optional, bool, default=False): Whether or not to print the length of the resulting matrices.
+        - stay_date: the night for which we're predicting cancels
     """
     as_of_dt = pd.to_datetime(as_of_date, format="%Y-%m-%d")
-    df_res["DaysUntilArrival"] = (df_res.ArrivalDate - as_of_dt).dt.days
-
+    df_res["DaysUntilArrival"] = (as_of_dt - df_res.ArrivalDate).dt.days
     # train: all reservations that have already checked out
     # test: all OTB reservations
-    train_mask = df_res["CheckoutDate"] < as_of_date
+    train_mask = df_res["CheckoutDate"] <= as_of_date
     df_train = df_res[train_mask]
-    df_test = get_otb_res(df_res, as_of_date)
+    test_mask = (
+        (df_res.ResMadeDate <= as_of_date)  # reservations made before AOD
+        # & (df_res.ArrivalDate <= stay_date)  # arriving before/on AOD
+        & (df_res.CheckoutDate > as_of_date)  # checking out after AOD
+    )
+    df_test = df_res[test_mask]
 
     X_train = df_train[features].copy()
     X_test = df_test[features].copy()
@@ -145,14 +148,20 @@ def predict_cancellations(
         df_res, as_of_date, hotel_num, print_len=print_len
     )
     # make predictions using above model, adjusting occ threshold to optimize F-0.5 score
-    X_test_preds = model.predict_proba(X_test)
+    X_test_cxl_probas = model.predict_proba(X_test)
 
     thresh = optimize_prob_threshold(
         model, X_test=X_test, y_test=y_test, confusion=confusion
     )
-    df_future_res = df_res.loc[list(X_test.index)].copy()  # PROBLEM HERE
-    df_future_res[["will_come_proba", "cxl_proba"]] = X_test_preds
-    df_future_res.drop(columns="will_come_proba", inplace=True)
-    df_future_res["will_cancel"] = df_future_res.cxl_proba >= thresh
-    df_future_res["IsCanceled"] = y_test.to_numpy()
-    return df_future_res
+
+    X_test[["will_come_proba", "cxl_proba"]] = X_test_cxl_probas
+    X_test["will_cancel"] = X_test.cxl_proba >= thresh
+    df_res["will_cancel"] = X_test["will_cancel"]
+
+    # df_otb = df_res.loc[list(X_test.index)].copy()  # PROBLEM HERE
+    # df_res[["will_come_proba", "cxl_proba"]] = X_test_cxl_probas
+    # df_otb.drop(columns="will_come_proba", inplace=True)
+    # df_otb["will_cancel"] = df_otb.cxl_proba >= thresh
+    # df_otb["IsCanceled"] = y_test.to
+    # return df_otb
+    return df_res
