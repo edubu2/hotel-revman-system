@@ -89,7 +89,9 @@ def model_cancellations(df_res, as_of_date, hotel_num, print_len):
         - as_of_date (str, i.e. "2017-08-24")
         - hotel_num (int)
     """
-    assert hotel_num in (1, 2), "Invalid hotel_num (must be integer, 1 or 2)."
+    assert hotel_num in (1, 2), ValueError(
+        "Invalid hotel_num (must be integer, 1 or 2)."
+    )
 
     if hotel_num == 1:
         feature_cols = X1_cxl_cols
