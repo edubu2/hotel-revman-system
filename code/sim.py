@@ -229,43 +229,51 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         stly_sim = setup_sim(stly_otb, df_res, stly_date_str)
         stly_sim = add_sim_cols(stly_sim, df_dbd, capacity)
         stly_sim = add_pricing(stly_sim)
-        STLY_OTB = stly_sim.loc[stly_date_str, "RoomsOTB"]
-        STLY_REV = stly_sim.loc[stly_date_str, "RevOTB"]
+        STLY_OTB = float(stly_sim.loc[stly_date_str, "RoomsOTB"])
+        STLY_REV = float(stly_sim.loc[stly_date_str, "RevOTB"])
         STLY_ADR = round(STLY_REV / STLY_OTB, 2)
-        STLY_SELLPRICE = stly_sim.loc[stly_date_str, "SellingPrice"]
-        STLY_CxlForecast = stly_sim.loc[stly_date_str, "CxlForecast"]
+        STLY_SELLPRICE = float(stly_sim.loc[stly_date_str, "SellingPrice"])
+        STLY_CxlForecast = float(stly_sim.loc[stly_date_str, "CxlForecast"])
 
         try:
-            STLY_TRN_OTB = stly_sim.loc[stly_date_str, "Trn_RoomsOTB"]
-            STLY_TRN_REV = stly_sim.loc[stly_date_str, "Trn_RevOTB"]
-            STLY_TRN_CXL = stly_sim.loc[stly_date_str, "Trn_CxlForecast"]
+            STLY_TRN_OTB = float(stly_sim.loc[stly_date_str, "Trn_RoomsOTB"])
+            STLY_TRN_REV = float(stly_sim.loc[stly_date_str, "Trn_RevOTB"])
+            STLY_TRN_ADR = round(STLY_TRN_REV / STLY_TRN_OTB, 2)
+            STLY_TRN_CXL = float(stly_sim.loc[stly_date_str, "Trn_CxlForecast"])
         except:
             STLY_TRN_OTB = 0
             STLY_TRN_REV = 0
+            STLY_TRN_ADR = 0
             STLY_TRN_CXL = 0
         try:
-            STLY_TRNP_OTB = stly_sim.loc[stly_date_str, "TrnP_RoomsOTB"]
-            STLY_TRNP_REV = stly_sim.loc[stly_date_str, "TrnP_RevOTB"]
-            STLY_TRNP_CXL = stly_sim.loc[stly_date_str, "TrnP_CxlForecast"]
+            STLY_TRNP_OTB = float(stly_sim.loc[stly_date_str, "TrnP_RoomsOTB"])
+            STLY_TRNP_REV = float(stly_sim.loc[stly_date_str, "TrnP_RevOTB"])
+            STLY_TRNP_ADR = round(STLY_TRNP_REV / STLY_TRNP_OTB, 2)
+            STLY_TRNP_CXL = float(stly_sim.loc[stly_date_str, "TrnP_CxlForecast"])
         except:
             STLY_TRNP_OTB = 0
             STLY_TRNP_REV = 0
+            STLY_TRNP_ADR = 0
             STLY_TRNP_CXL = 0
         try:
-            STLY_GRP_OTB = stly_sim.loc[stly_date_str, "Grp_RoomsOTB"]
-            STLY_GRP_REV = stly_sim.loc[stly_date_str, "Grp_RevOTB"]
-            STLY_GRP_CXL = stly_sim.loc[stly_date_str, "Grp_CxlForecast"]
+            STLY_GRP_OTB = float(stly_sim.loc[stly_date_str, "Grp_RoomsOTB"])
+            STLY_GRP_REV = float(stly_sim.loc[stly_date_str, "Grp_RevOTB"])
+            STLY_GRP_ADR = round(STLY_GRP_REV / STLY_GRP_OTB, 2)
+            STLY_GRP_CXL = float(stly_sim.loc[stly_date_str, "Grp_CxlForecast"])
         except:
             STLY_GRP_OTB = 0
             STLY_GRP_REV = 0
+            STLY_GRP_ADR = 0
             STLY_GRP_CXL = 0
         try:
-            STLY_CNT_OTB = stly_sim.loc[stly_date_str, "Cnt_RoomsOTB"]
-            STLY_CNT_REV = stly_sim.loc[stly_date_str, "Cnt_RevOTB"]
-            STLY_CNT_CXL = stly_sim.loc[stly_date_str, "Cnt_CxlForecast"]
+            STLY_CNT_OTB = float(stly_sim.loc[stly_date_str, "Cnt_RoomsOTB"])
+            STLY_CNT_REV = float(stly_sim.loc[stly_date_str, "Cnt_RevOTB"])
+            STLY_CNT_ADR = round(STLY_CNT_REV / STLY_CNT_OTB, 2)
+            STLY_CNT_CXL = float(stly_sim.loc[stly_date_str, "Cnt_CxlForecast"])
         except:
             STLY_CNT_OTB = 0
             STLY_CNT_REV = 0
+            STLY_CNT_ADR = 0
             STLY_CNT_CXL = 0
 
         return (
@@ -276,15 +284,19 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
             STLY_CxlForecast,
             STLY_TRN_OTB,
             STLY_TRN_REV,
+            STLY_TRN_ADR,
             STLY_TRN_CXL,
             STLY_TRNP_OTB,
             STLY_TRNP_REV,
+            STLY_TRNP_ADR,
             STLY_TRNP_CXL,
             STLY_GRP_OTB,
             STLY_GRP_REV,
+            STLY_GRP_ADR,
             STLY_GRP_CXL,
             STLY_CNT_OTB,
             STLY_CNT_REV,
+            STLY_CNT_ADR,
             STLY_CNT_CXL,
         )
 
@@ -299,15 +311,19 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         "STLY_CxlForecast",
         "STLY_TRN_OTB",
         "STLY_TRN_REV",
+        "STLY_TRN_ADR",
         "STLY_TRN_CXL",
         "STLY_TRNP_OTB",
         "STLY_TRNP_REV",
+        "STLY_TRNP_ADR",
         "STLY_TRNP_CXL",
         "STLY_GRP_OTB",
         "STLY_GRP_REV",
+        "STLY_GRP_ADR",
         "STLY_GRP_CXL",
         "STLY_CNT_OTB",
         "STLY_CNT_REV",
+        "STLY_CNT_ADR",
         "STLY_CNT_CXL",
     ]
     df_sim[new_col_names] = df_sim.apply(
