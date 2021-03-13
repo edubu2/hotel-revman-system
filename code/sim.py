@@ -213,7 +213,7 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         # pull stly
         stly_date = row["STLY_Date"]
         stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
-        print(f"Predicting cancellations for STLY date {stly_date_str}...")
+        print(f"Predicting cancellations as of STLY date {stly_date_str}...")
         stly_otb = predict_cancellations(
             df_res, stly_date_str, hotel_num, confusion=False
         )
@@ -225,12 +225,36 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         stly_sim = setup_sim(stly_otb, df_res, stly_date_str)
         stly_sim = add_sim_cols(stly_sim, df_dbd, capacity)
         stly_sim = add_pricing(stly_sim)
-
         STLY_OTB = stly_sim.loc[stly_date_str, "RoomsOTB"]
         STLY_REV = stly_sim.loc[stly_date_str, "RevOTB"]
         STLY_ADR = round(STLY_REV / STLY_OTB, 2)
         STLY_SELLPRICE = stly_sim.loc[stly_date_str, "SellingPrice"]
         STLY_CxlForecast = stly_sim.loc[stly_date_str, "CxlForecast"]
+
+        try:
+            STLY_TRN_OTB = stly_sim.loc[stly_date_str, "Trn_RoomsOTB"]
+            STLY_TRN_REV = stly_sim.loc[stly_date_str, "Trn_RevOTB"]
+        except:
+            STLY_TRN_OTB = 0
+            STLY_TRN_REV = 0
+        try:
+            STLY_TRNP_OTB = stly_sim.loc[stly_date_str, "TrnP_RoomsOTB"]
+            STLY_TRNP_REV = stly_sim.loc[stly_date_str, "TrnP_RevOTB"]
+        except:
+            STLY_TRNP_OTB = 0
+            STLY_TRNP_REV = 0
+        try:
+            STLY_GRP_OTB = stly_sim.loc[stly_date_str, "Grp_RoomsOTB"]
+            STLY_GRP_REV = stly_sim.loc[stly_date_str, "Grp_RevOTB"]
+        except:
+            STLY_GRP_OTB = 0
+            STLY_GRP_REV = 0
+        try:
+            STLY_CNT_OTB = stly_sim.loc[stly_date_str, "Cnt_RoomsOTB"]
+            STLY_CNT_REV = stly_sim.loc[stly_date_str, "Cnt_RevOTB"]
+        except:
+            STLY_CNT_OTB = 0
+            STLY_CNT_REV = 0
 
         return (
             STLY_OTB,
@@ -238,17 +262,33 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
             STLY_ADR,
             STLY_SELLPRICE,
             STLY_CxlForecast,
+            STLY_TRN_OTB,
+            STLY_TRN_REV,
+            STLY_TRNP_OTB,
+            STLY_TRNP_REV,
+            STLY_GRP_OTB,
+            STLY_GRP_REV,
+            STLY_CNT_OTB,
+            STLY_CNT_REV,
         )
 
     num_models = len(df_sim)
     print(f"Training {num_models} models to obtain STLY statistics...\n")
 
-    new_col_names = [
+    new_col_names = 
         "STLY_OTB",
         "STLY_Rev",
         "STLY_ADR",
         "STLY_SellingPrice",
         "STLY_CxlForecast",
+        "STLY_TRN_OTB",
+        "STLY_TRN_REV",
+        "STLY_TRNP_OTB",
+        "STLY_TRNP_REV",
+        "STLY_GRP_OTB",
+        "STLY_GRP_REV",
+        "STLY_CNT_OTB",
+        "STLY_CNT_REV",
     ]
     df_sim[new_col_names] = df_sim.apply(
         apply_STLY_stats, result_type="expand", axis="columns"
