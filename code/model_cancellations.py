@@ -148,7 +148,7 @@ def predict_cancellations(
     X_test_cxl_probas = model.predict_proba(X_test)
 
     thresh = optimize_prob_threshold(
-        model, X_test=X_test, y_test=y_test, confusion=confusion, beta=1
+        model, X_test=X_test, y_test=y_test, confusion=confusion, beta=0.5
     )
 
     X_test[["will_come_proba", "cxl_proba"]] = X_test_cxl_probas
