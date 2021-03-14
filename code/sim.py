@@ -312,7 +312,7 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
         result_type="expand",
         axis="columns",
     )
-    return df_sim
+    return df_sim.fillna(0)
 
 
 def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
@@ -535,7 +535,9 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
     return df_sim
 
 
-def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
+def generate_simulation(
+    df_dbd, as_of_date, hotel_num, df_res, confusion=True, pull_stly=True
+):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
 
@@ -547,6 +549,7 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
         - as_of_date (str "%Y-%m-%d", required): date of simulation
         - hotel_num (int, required): 1 for h1 and 2 for h2
         - df_res (DataFrame, required)
+        - confusion (bool, optional): whether or not to print a confusion matrix plot for STLY cancellations.
     """
     assert hotel_num in [1, 2], ValueError("Invalid hotel_num.")
     aod_dt = pd.to_datetime(as_of_date, format="%Y-%m-%d")
@@ -555,7 +558,9 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     print("Preparing crystal ball...")
     print("Predicting cancellations on all future reservations...")
     # df_otb = get_otb_res(df_res, as_of_date)
-    df_otb = predict_cancellations(df_res, as_of_date, hotel_num, print_len=True)
+    df_otb = predict_cancellations(
+        df_res, as_of_date, hotel_num, print_len=True, confusion=confusion
+    )
 
     if hotel_num == 1:
         capacity = H1_CAPACITY
@@ -572,14 +577,15 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     print("Estimating prices...")
     df_sim = add_pricing(df_sim)
     df_sim = add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity)
-    df_sim = add_stly_cols(
-        df_sim,
-        df_dbd,
-        df_res,
-        hotel_num,
-        as_of_date,
-        capacity,
-    )
+    if pull_stly:
+        df_sim = add_stly_cols(
+            df_sim,
+            df_dbd,
+            df_res,
+            hotel_num,
+            as_of_date,
+            capacity,
+        )
 
-    print("Simulation setup complete!\n")
+    print(f"\nSimulation setup complete. As of date: {as_of_date}\n")
     return df_sim
