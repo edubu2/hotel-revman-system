@@ -48,7 +48,7 @@ def get_otb_res(df_res, as_of_date):
     return df_res[otb_mask]
 
 
-def split_reservations(df_res, as_of_date, features, print_len):
+def split_reservations(df_res, as_of_date, features, verbose=1):
     """
     Performs train/test split.
 
@@ -58,7 +58,7 @@ def split_reservations(df_res, as_of_date, features, print_len):
         - df_res (required): cleaned Reservations DataFrame
         - as_of_date (required, str, DATE_FMT): Date that represents 'today' for Rev Management simulation
         - features (required, list): Hotel-specific, imported from features.py
-        - print_len(optional, bool, default=False): Whether or not to print the length of the resulting matrices.
+        - verbose(optional, int): if verbose==0, no output verbiage will be printed to the screen.
         - stay_date: the night for which we're predicting cancels
     """
     as_of_dt = pd.to_datetime(as_of_date, format=DATE_FMT)
@@ -80,14 +80,14 @@ def split_reservations(df_res, as_of_date, features, print_len):
     y_train = df_train["IsCanceled"].copy()
     y_test = df_test["IsCanceled"].copy()
 
-    if print_len:
+    if verbose > 1:
         print(
             f"Split complete.\nTraining sample size: {len(X_train)}\nTesting sample Size: {len(X_test)}\n\n"
         )
     return X_train, X_test, y_train, y_test
 
 
-def model_cancellations(df_res, as_of_date, hotel_num, print_len):
+def model_cancellations(df_res, as_of_date, hotel_num, verbose=1):
     """
     Performs train/test split using split_reservations func,
     Prepares & fits the XGBClassifier model on the training data.
@@ -131,16 +131,14 @@ def model_cancellations(df_res, as_of_date, hotel_num, print_len):
         df_res,
         as_of_date,
         feature_cols,
-        print_len,
+        verbose=verbose,
     )
     model.fit(X_train, y_train)
 
     return X_test, y_test, model
 
 
-def predict_cancellations(
-    df_res, as_of_date, hotel_num, print_len=False, confusion=True
-):
+def predict_cancellations(df_res, as_of_date, hotel_num, confusion=True, verbose=1):
     """
     Generates cancellation predictions and returns future-looking reservations dataFrame.
 
@@ -155,7 +153,10 @@ def predict_cancellations(
     """
 
     X_test, y_test, model = model_cancellations(
-        df_res, as_of_date, hotel_num, print_len=print_len
+        df_res,
+        as_of_date,
+        hotel_num,
+        verbose=verbose,
     )
     # make predictions using above model, adjusting occ threshold to optimize F-0.5 score
     X_test_cxl_probas = model.predict_proba(X_test)

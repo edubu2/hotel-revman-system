@@ -18,6 +18,7 @@ from model_cancellations import get_otb_res, predict_cancellations
 H1_CAPACITY = 187
 H2_CAPACITY = 226
 DATE_FMT = "%Y-%m-%d"
+SIM_CSV_FP = f"./sims/h1_sim_{}.csv"
 
 
 def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
@@ -563,7 +564,11 @@ def generate_simulation(
         print("Predicting cancellations on all future reservations...")
     # df_otb = get_otb_res(df_res, as_of_date)
     df_otb = predict_cancellations(
-        df_res, as_of_date, hotel_num, print_len=True, confusion=confusion
+        df_res,
+        as_of_date,
+        hotel_num,
+        confusion=confusion,
+        verbose=verbose,
     )
 
     if hotel_num == 1:

@@ -18,8 +18,8 @@ H2_DBD = pd.read_pickle("pickle/h2_dbd.pick")
 
 
 def save_sim_records(df_dbd, df_res, hotel_num, skip_existing=False):
-    start = datetime.date(2016, 7, 1)
-    stop = datetime.date(2017, 8, 1)
+    start = datetime.date(2017, 8, 1)
+    stop = datetime.date(2017, 8, 31)
     all_dates = [
         datetime.datetime.strftime(start + datetime.timedelta(days=x), format=DATE_FMT)
         for x in range((stop - start).days + 1)
@@ -28,7 +28,7 @@ def save_sim_records(df_dbd, df_res, hotel_num, skip_existing=False):
     folder = "./sims/"
 
     for as_of_date in all_dates:
-        # aod_dt = pd.to_datetime(as_of_date, format=DATE_FMT)
+        out_file = str(folder + f"h{str(hotel_num)}_sim_{as_of_date}.csv")
         df_sim = generate_simulation(
             df_dbd,
             as_of_date,
@@ -38,8 +38,8 @@ def save_sim_records(df_dbd, df_res, hotel_num, skip_existing=False):
             pull_stly=False,
             verbose=0,
         )
-        print(f"Generated df_sim as of {as_of_date}")
-        out_file = str(folder + f"h{str(hotel_num)}_sim_{as_of_date}.csv")
+        df_sim.rename(columns={"Unnamed: 0": "Date"}, inplace=True, errors="ignore")
+
         df_sim.to_csv(out_file)
 
         print(f"Saved file {out_file}.")
@@ -47,14 +47,18 @@ def save_sim_records(df_dbd, df_res, hotel_num, skip_existing=False):
     return
 
 
-def main(h1_dbd, h1_res, h2_dbd, h2_res, skip_existing):
+def main(h1_dbd, h1_res, h2_dbd, h2_res):
+    print("Starting hotel 1...")
     save_sim_records(h1_dbd, h1_res, 1)
     print(
         f"Finished retrieving historical OTB records for Hotel 1\n",
-        "Sleeping ten seconds for CPU health.",
+        "Sleeping ten seconds for CPU health...",
     )
     time.sleep(10)
+    print("Starting hotel 2...")
     save_sim_records(h2_dbd, h2_res, 2)
+    print("All files saved.")
+    return
 
 
 main(H1_DBD, H1_RES, H2_DBD, H2_RES)
