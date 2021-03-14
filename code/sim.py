@@ -49,19 +49,19 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
 
     while date <= end_date:
 
-        date_string = datetime.datetime.strftime(date, format="%Y-%m-%d")
+        stay_date_str = datetime.datetime.strftime(date, format="%Y-%m-%d")
         # initialize date dict, which will go into nightly_stats as:
         # {'date': {'stat': 'val', 'stat', 'val'}}
-        night_df = get_otb_res(df_res, date_string)
+        night_df = get_otb_res(df_res, stay_date_str)
 
-        mask = (night_df.ArrivalDate <= date_string) & (
-            night_df.CheckoutDate > date_string
+        mask = (night_df.ArrivalDate <= stay_date_str) & (
+            night_df.CheckoutDate > stay_date_str
         )
 
         night_df = night_df[mask].copy()
 
-        date_stats = aggregate_reservations(night_df, date_string)
-        nightly_stats[date_string] = dict(date_stats)
+        date_stats = aggregate_reservations(night_df, stay_date_str)
+        nightly_stats[stay_date_str] = dict(date_stats)
         date += delta
 
     df_sim = pd.DataFrame(nightly_stats).transpose().fillna(0)
@@ -296,19 +296,17 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
     t30_col_names = ["TM30_" + col for col in tm_cols]
     t15_col_names = ["TM15_" + col for col in tm_cols]
     t05_col_names = ["TM05_" + col for col in tm_cols]
-    print("Pulling t-5 booking stats...")
+    print("Pulling t-5, t-15, t-30 booking stats...")
     df_sim[t05_col_names] = df_sim.apply(
         lambda row: apply_tminus_stats(row, "TM05_Date"),
         result_type="expand",
         axis="columns",
     )
-    print("Pulling t-15 booking stats...")
     df_sim[t15_col_names] = df_sim.apply(
         lambda row: apply_tminus_stats(row, "TM15_Date"),
         result_type="expand",
         axis="columns",
     )
-    print("Pulling t-30 booking stats...")
     df_sim[t30_col_names] = df_sim.apply(
         lambda row: apply_tminus_stats(row, "TM30_Date"),
         result_type="expand",
@@ -344,12 +342,13 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         #     df_res, stly_date_str, hotel_num, confusion=False
         # )
         stly_otb = get_otb_res(df_res, stly_date_str)
-        mask = (stly_otb["ArrivalDate"] <= stay_date) & (
-            stly_otb["CheckoutDate"] > stay_date
+        mask = (stly_otb["ArrivalDate"] <= stay_date_str) & (
+            stly_otb["CheckoutDate"] > stay_date_str
         )
 
         stly_otb = stly_otb[mask].copy()
         stly_sim = setup_sim(stly_otb, df_res, stly_date_str)
+        stly_sim = add_sim_cols(stly_sim, df_dbd, capacity, include_lya=False)
         stly_sim = add_pricing(stly_sim)
         stly_sim = add_tminus_cols(stly_sim, df_dbd, df_res, hotel_num, capacity)
         STLY_OTB = float(stly_sim.loc[stay_date_str, "RoomsOTB"])
@@ -366,18 +365,16 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
 
         try:
             STLY_TRN_OTB = float(stly_sim.loc[stay_date_str, "Trn_RoomsOTB"])
-            STLY_TRN_REV = float(stly_sim.loc[stay_date_str, "Trn_RevOTB"])
-            STLY_TRN_ADR = round(STLY_TRN_REV / STLY_TRN_OTB, 2)
+            STLY_TRN_ADR = float(stly_sim.loc[stay_date_str, "Trn_ADR_OTB"])
             # STLY_TRN_CXL = float(stly_sim.loc[stay_date_str, "Trn_CxlForecast"])
-            STLY_TM05_TRN_OTB = float(stly_sim.loc[stay_date_str, "TM05_Trn_OTB"])
-            STLY_TM05_TRN_ADR = float(stly_sim.loc[stay_date_str, "TM05_Trn_ADR"])
-            STLY_TM15_TRN_OTB = float(stly_sim.loc[stay_date_str, "TM15_Trn_OTB"])
-            STLY_TM15_TRN_ADR = float(stly_sim.loc[stay_date_str, "TM15_Trn_ADR"])
-            STLY_TM30_TRN_OTB = float(stly_sim.loc[stay_date_str, "TM30_Trn_OTB"])
-            STLY_TM30_TRN_ADR = float(stly_sim.loc[stay_date_str, "TM30_Trn_ADR"])
+            STLY_TM05_TRN_OTB = float(stly_sim.loc[stay_date_str, "TM05_TRN_OTB"])
+            STLY_TM05_TRN_ADR = float(stly_sim.loc[stay_date_str, "TM05_TRN_ADR"])
+            STLY_TM15_TRN_OTB = float(stly_sim.loc[stay_date_str, "TM15_TRN_OTB"])
+            STLY_TM15_TRN_ADR = float(stly_sim.loc[stay_date_str, "TM15_TRN_ADR"])
+            STLY_TM30_TRN_OTB = float(stly_sim.loc[stay_date_str, "TM30_TRN_OTB"])
+            STLY_TM30_TRN_ADR = float(stly_sim.loc[stay_date_str, "TM30_TRN_ADR"])
         except:
             STLY_TRN_OTB = 0
-            STLY_TRN_REV = 0
             STLY_TRN_ADR = 0
             # STLY_TRN_CXL = 0
             STLY_TM05_TRN_OTB = 0
@@ -388,20 +385,16 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
             STLY_TM30_TRN_ADR = 0
         try:
             STLY_TRNP_OTB = float(stly_sim.loc[stay_date_str, "TrnP_RoomsOTB"])
-            STLY_TRNP_REV = float(stly_sim.loc[stay_date_str, "TrnP_RevOTB"])
-            STLY_TRNP_ADR = round(STLY_TRNP_REV / STLY_TRNP_OTB, 2)
-            # STLY_TRNP_CXL = float(stly_sim.loc[stay_date_str, "TrnP_CxlForecast"])
-            STLY_TM05_TRNP_OTB = float(stly_sim.loc[stay_date_str, "TM05_TrnP_OTB"])
-            STLY_TM05_TRNP_ADR = float(stly_sim.loc[stay_date_str, "TM05_TrnP_ADR"])
-            STLY_TM15_TRNP_OTB = float(stly_sim.loc[stay_date_str, "TM15_TrnP_OTB"])
-            STLY_TM15_TRNP_ADR = float(stly_sim.loc[stay_date_str, "TM15_TrnP_ADR"])
-            STLY_TM30_TRNP_OTB = float(stly_sim.loc[stay_date_str, "TM30_TrnP_OTB"])
-            STLY_TM30_TRNP_ADR = float(stly_sim.loc[stay_date_str, "TM30_TrnP_ADR"])
+            STLY_TRNP_ADR = float(stly_sim.loc[stay_date_str, "TrnP_ADR_OTB"])
+            STLY_TM05_TRNP_OTB = float(stly_sim.loc[stay_date_str, "TM05_TRNP_OTB"])
+            STLY_TM05_TRNP_ADR = float(stly_sim.loc[stay_date_str, "TM05_TRNP_ADR"])
+            STLY_TM15_TRNP_OTB = float(stly_sim.loc[stay_date_str, "TM15_TRNP_OTB"])
+            STLY_TM15_TRNP_ADR = float(stly_sim.loc[stay_date_str, "TM15_TRNP_ADR"])
+            STLY_TM30_TRNP_OTB = float(stly_sim.loc[stay_date_str, "TM30_TRNP_OTB"])
+            STLY_TM30_TRNP_ADR = float(stly_sim.loc[stay_date_str, "TM30_TRNP_ADR"])
         except:
             STLY_TRNP_OTB = 0
-            STLY_TRNP_REV = 0
             STLY_TRNP_ADR = 0
-            # STLY_TRNP_CXL = 0
             STLY_TM05_TRNP_OTB = 0
             STLY_TM05_TRNP_ADR = 0
             STLY_TM15_TRNP_OTB = 0
@@ -410,20 +403,16 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
             STLY_TM30_TRNP_ADR = 0
         try:
             STLY_GRP_OTB = float(stly_sim.loc[stay_date_str, "Grp_RoomsOTB"])
-            STLY_GRP_REV = float(stly_sim.loc[stay_date_str, "Grp_RevOTB"])
-            STLY_GRP_ADR = round(STLY_GRP_REV / STLY_GRP_OTB, 2)
-            # STLY_GRP_CXL = float(stly_sim.loc[stay_date_str, "Grp_CxlForecast"])
-            STLY_TM05_GRP_OTB = float(stly_sim.loc[stay_date_str, "TM05_Grp_OTB"])
-            STLY_TM05_GRP_ADR = float(stly_sim.loc[stay_date_str, "TM05_Grp_ADR"])
-            STLY_TM15_GRP_OTB = float(stly_sim.loc[stay_date_str, "TM15_Grp_OTB"])
-            STLY_TM15_GRP_ADR = float(stly_sim.loc[stay_date_str, "TM15_Grp_ADR"])
-            STLY_TM30_GRP_OTB = float(stly_sim.loc[stay_date_str, "TM30_Grp_OTB"])
-            STLY_TM30_GRP_ADR = float(stly_sim.loc[stay_date_str, "TM30_Grp_ADR"])
+            STLY_GRP_ADR = float(stly_sim.loc[stay_date_str, "Grp_ADR_OTB"])
+            STLY_TM05_GRP_OTB = float(stly_sim.loc[stay_date_str, "TM05_GRP_OTB"])
+            STLY_TM05_GRP_ADR = float(stly_sim.loc[stay_date_str, "TM05_GRP_ADR"])
+            STLY_TM15_GRP_OTB = float(stly_sim.loc[stay_date_str, "TM15_GRP_OTB"])
+            STLY_TM15_GRP_ADR = float(stly_sim.loc[stay_date_str, "TM15_GRP_ADR"])
+            STLY_TM30_GRP_OTB = float(stly_sim.loc[stay_date_str, "TM30_GRP_OTB"])
+            STLY_TM30_GRP_ADR = float(stly_sim.loc[stay_date_str, "TM30_GRP_ADR"])
         except:
             STLY_GRP_OTB = 0
-            STLY_GRP_REV = 0
             STLY_GRP_ADR = 0
-            # STLY_GRP_CXL = 0
             STLY_TM05_GRP_OTB = 0
             STLY_TM05_GRP_ADR = 0
             STLY_TM15_GRP_OTB = 0
@@ -432,20 +421,16 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
             STLY_TM30_GRP_ADR = 0
         try:
             STLY_CNT_OTB = float(stly_sim.loc[stay_date_str, "Cnt_RoomsOTB"])
-            STLY_CNT_REV = float(stly_sim.loc[stay_date_str, "Cnt_RevOTB"])
-            STLY_CNT_ADR = round(STLY_CNT_REV / STLY_CNT_OTB, 2)
-            # STLY_CNT_CXL = float(stly_sim.loc[stay_date_str, "Cnt_CxlForecast"])
-            STLY_TM05_CNT_OTB = float(stly_sim.loc[stay_date_str, "TM05_Cnt_OTB"])
-            STLY_TM05_CNT_ADR = float(stly_sim.loc[stay_date_str, "TM05_Cnt_ADR"])
-            STLY_TM15_CNT_OTB = float(stly_sim.loc[stay_date_str, "TM15_Cnt_OTB"])
-            STLY_TM15_CNT_ADR = float(stly_sim.loc[stay_date_str, "TM15_Cnt_ADR"])
-            STLY_TM30_CNT_OTB = float(stly_sim.loc[stay_date_str, "TM30_Cnt_OTB"])
-            STLY_TM30_CNT_ADR = float(stly_sim.loc[stay_date_str, "TM30_Cnt_ADR"])
+            STLY_CNT_ADR = float(stly_sim.loc[stay_date_str, "Cnt_ADR_OTB"])
+            STLY_TM05_CNT_OTB = float(stly_sim.loc[stay_date_str, "TM05_CNT_OTB"])
+            STLY_TM05_CNT_ADR = float(stly_sim.loc[stay_date_str, "TM05_CNT_ADR"])
+            STLY_TM15_CNT_OTB = float(stly_sim.loc[stay_date_str, "TM15_CNT_OTB"])
+            STLY_TM15_CNT_ADR = float(stly_sim.loc[stay_date_str, "TM15_CNT_ADR"])
+            STLY_TM30_CNT_OTB = float(stly_sim.loc[stay_date_str, "TM30_CNT_OTB"])
+            STLY_TM30_CNT_ADR = float(stly_sim.loc[stay_date_str, "TM30_CNT_ADR"])
         except:
             STLY_CNT_OTB = 0
-            STLY_CNT_REV = 0
             STLY_CNT_ADR = 0
-            # STLY_CNT_CXL = 0
             STLY_TM05_CNT_OTB = 0
             STLY_TM05_CNT_ADR = 0
             STLY_TM15_CNT_OTB = 0
@@ -455,26 +440,16 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
 
         return (
             STLY_OTB,
-            STLY_REV,
             STLY_ADR,
             STLY_SELLPRICE,
-            # STLY_CxlForecast,
             STLY_TRN_OTB,
-            STLY_TRN_REV,
             STLY_TRN_ADR,
-            # STLY_TRN_CXL,
             STLY_TRNP_OTB,
-            STLY_TRNP_REV,
             STLY_TRNP_ADR,
-            # STLY_TRNP_CXL,
             STLY_GRP_OTB,
-            STLY_GRP_REV,
             STLY_GRP_ADR,
-            # STLY_GRP_CXL,
             STLY_CNT_OTB,
-            STLY_CNT_REV,
             STLY_CNT_ADR,
-            # STLY_CNT_CXL,
             STLY_TM05_OTB,
             STLY_TM05_ADR,
             STLY_TM15_OTB,
@@ -512,26 +487,16 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
 
     new_col_names = [
         "STLY_OTB",
-        "STLY_Rev",
         "STLY_ADR",
         "STLY_SellingPrice",
-        # "STLY_CxlForecast",
         "STLY_TRN_OTB",
-        "STLY_TRN_REV",
         "STLY_TRN_ADR",
-        # "STLY_TRN_CXL",
         "STLY_TRNP_OTB",
-        "STLY_TRNP_REV",
         "STLY_TRNP_ADR",
-        # "STLY_TRNP_CXL",
         "STLY_GRP_OTB",
-        "STLY_GRP_REV",
         "STLY_GRP_ADR",
-        # "STLY_GRP_CXL",
         "STLY_CNT_OTB",
-        "STLY_CNT_REV",
         "STLY_CNT_ADR",
-        # "STLY_CNT_CXL",
         "STLY_TM05_OTB",
         "STLY_TM05_ADR",
         "STLY_TM15_OTB",
@@ -585,7 +550,7 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     """
     assert hotel_num in [1, 2], ValueError("Invalid hotel_num.")
     aod_dt = pd.to_datetime(as_of_date, format="%Y-%m-%d")
-    min_dt = datetime.date(2016, 7, 1)
+    min_dt = datetime.date(2015, 7, 1)
     assert aod_dt > min_dt, ValueError("as_of_date must be between 7/1/16 and 8/30/17")
     print("Preparing crystal ball...")
     print("Predicting cancellations on all future reservations...")
