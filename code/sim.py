@@ -238,10 +238,8 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
     def apply_tminus_stats(row, tm_date_col):
         night = row["Date"]
         night_ds = datetime.datetime.strftime(row["Date"], format=DATE_FMT)
-        # print(f"night: {night}")
         tminus_date = row[tm_date_col]
         tminus_ds = datetime.datetime.strftime(tminus_date, format=DATE_FMT)
-        # print(f"tminus_ds: {tminus_ds}")
         tminus_otb = get_otb_res(df_res, tminus_ds)
         mask = (tminus_otb["ArrivalDate"] <= night_ds) & (
             tminus_otb["CheckoutDate"] > night_ds
@@ -295,7 +293,7 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
     t30_col_names = ["TM30_" + col for col in tm_cols]
     t15_col_names = ["TM15_" + col for col in tm_cols]
     t05_col_names = ["TM05_" + col for col in tm_cols]
-    print("Pulling t-5, t-15, t-30 booking stats...")
+    # print("Pulling t-5, t-15, t-30 booking stats...")
     df_sim[t05_col_names] = df_sim.apply(
         lambda row: apply_tminus_stats(row, "TM05_Date"),
         result_type="expand",
@@ -314,7 +312,7 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
     return df_sim.fillna(0)
 
 
-def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
+def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbose=1):
     """
     Adds the following columns to df_sim:
         - STLY: RoomsOTB, ADR_OTB, TotalRoomsBooked_L30 & L90
@@ -334,9 +332,10 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
             years=-1, weekday=pd.to_datetime(as_of_date).weekday()
         )
         stly_date_str = datetime.datetime.strftime(stly_date, format=DATE_FMT)
-        print(
-            f"Pulling stats from STLY date {stly_date_str}, stay_date {stay_date_str}..."
-        )
+        if verbose > 0:
+            print(
+                f"Pulling stats from STLY date {stly_date_str}, stay_date {stay_date_str}..."
+            )
         # stly_otb = predict_cancellations(
         #     df_res, stly_date_str, hotel_num, confusion=False
         # )
@@ -481,8 +480,9 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
             STLY_TM30_CNT_ADR,
         )
 
-    num_models = len(df_sim)
-    print(f"Training {num_models} models to obtain STLY statistics...\n")
+    if verbose > 0:
+        num_models = len(df_sim)
+        print(f"Training {num_models} models to obtain STLY statistics...\n")
 
     new_col_names = [
         "STLY_OTB",
@@ -530,12 +530,13 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
     df_sim[new_col_names] = df_sim.apply(
         apply_STLY_stats, result_type="expand", axis="columns"
     )
-    print("\nSTLY statistics obtained.\n")
+    if verbose > 0:
+        print("\nSTLY statistics obtained.\n")
     return df_sim
 
 
 def generate_simulation(
-    df_dbd, as_of_date, hotel_num, df_res, confusion=True, pull_stly=True
+    df_dbd, as_of_date, hotel_num, df_res, confusion=True, pull_stly=True, verbose=1
 ):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
@@ -548,14 +549,18 @@ def generate_simulation(
         - as_of_date (str DATE_FMT, required): date of simulation
         - hotel_num (int, required): 1 for h1 and 2 for h2
         - df_res (DataFrame, required)
-        - confusion (bool, optional): whether or not to print a confusion matrix plot for STLY cancellations.
+        - confusion (bool, optional): whether or not to print a confusion matrix plot for
+          cancellation predictions.
+        - pull_stly (bool, optional): whether or not to pull stly stats for sim.
+        - verbose (int, optional): if zero, print statements will be suppressed.
     """
     assert hotel_num in [1, 2], ValueError("Invalid hotel_num.")
     aod_dt = pd.to_datetime(as_of_date, format=DATE_FMT)
     min_dt = datetime.date(2015, 7, 1)
     assert aod_dt > min_dt, ValueError("as_of_date must be between 7/1/16 and 8/30/17")
-    print("Preparing crystal ball...")
-    print("Predicting cancellations on all future reservations...")
+    if verbose > 0:
+        print("Preparing crystal ball...")
+        print("Predicting cancellations on all future reservations...")
     # df_otb = get_otb_res(df_res, as_of_date)
     df_otb = predict_cancellations(
         df_res, as_of_date, hotel_num, print_len=True, confusion=confusion
@@ -565,26 +570,31 @@ def generate_simulation(
         capacity = H1_CAPACITY
     else:
         capacity = H2_CAPACITY
-
-    print("Setting up simulation...")
+    if verbose > 0:
+        print("Setting up simulation...")
     df_sim = setup_sim(
         df_otb,
         df_res,
         as_of_date,
     )
     df_sim = add_sim_cols(df_sim, df_dbd, capacity)
-    print("Estimating prices...")
+
+    if verbose > 0:
+        print("Estimating prices...")
     df_sim = add_pricing(df_sim)
+
+    if verbose > 0:
+        print("Pulling T-Minus OTB statistics...")
     df_sim = add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity)
+
+    if verbose > 0:
+        print("Pulling STLY OTB statistics...")
     if pull_stly:
         df_sim = add_stly_cols(
-            df_sim,
-            df_dbd,
-            df_res,
-            hotel_num,
-            as_of_date,
-            capacity,
+            df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbose=verbose
         )
 
-    print(f"\nSimulation setup complete. As of date: {as_of_date}\n")
+    if verbose > 0:
+        print(f"\nSimulation setup complete. As of date: {as_of_date}\n")
+
     return df_sim
