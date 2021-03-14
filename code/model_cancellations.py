@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import datetime
 
 from features import X1_cxl_cols, X2_cxl_cols
 from xgboost import XGBClassifier
@@ -10,6 +11,8 @@ from model_tools import (
     optimize_prob_threshold,
     make_confusion_matrix,
 )
+
+DATE_FMT = "%Y-%m-%d"
 
 
 def get_otb_res(df_res, as_of_date):
@@ -22,9 +25,17 @@ def get_otb_res(df_res, as_of_date):
         - as_of_date (required, str): Date of simulation.
             - e.g. "2017-08-15"
     """
+    aod = pd.to_datetime(as_of_date)
+    if aod + pd.DateOffset(31) > datetime.date(2017, 8, 31):
+        end_date = datetime.date(2017, 8, 31)
+    else:
+        end_date = aod + pd.DateOffset(31)
+    end_date_str = datetime.datetime.strftime(end_date, format=DATE_FMT)
+
     otb_mask = (
         (df_res.ResMadeDate <= as_of_date)  # reservations made before AOD
         & (df_res.CheckoutDate > as_of_date)  # checking out after AOD
+        & (df_res.ArrivalDate <= end_date_str)
     ) & (
         (df_res.IsCanceled == 0)
         | (
@@ -45,12 +56,12 @@ def split_reservations(df_res, as_of_date, features, print_len):
     _______
     Parameters:
         - df_res (required): cleaned Reservations DataFrame
-        - as_of_date (required, str, "%Y-%m-%d"): Date that represents 'today' for Rev Management simulation
+        - as_of_date (required, str, DATE_FMT): Date that represents 'today' for Rev Management simulation
         - features (required, list): Hotel-specific, imported from features.py
         - print_len(optional, bool, default=False): Whether or not to print the length of the resulting matrices.
         - stay_date: the night for which we're predicting cancels
     """
-    as_of_dt = pd.to_datetime(as_of_date, format="%Y-%m-%d")
+    as_of_dt = pd.to_datetime(as_of_date, format=DATE_FMT)
     df_res["DaysUntilArrival"] = (as_of_dt - df_res.ArrivalDate).dt.days
     # train: all reservations that have already checked out
     # test: all OTB reservations
@@ -138,7 +149,7 @@ def predict_cancellations(
     _____
     Parameters:
         - df_res (pd.DataFrame, required): cleaned reservations DataFrame
-        - as_of_date (str "%Y-%m-%d", required): date of simulation
+        - as_of_date (str DATE_FMT, required): date of simulation
         - hotel_num (int, required):
         - confusion (T/F, optional): whether or not a confusion matrix will be printed
     """

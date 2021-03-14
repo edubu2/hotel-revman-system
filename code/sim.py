@@ -17,6 +17,7 @@ from model_cancellations import get_otb_res, predict_cancellations
 
 H1_CAPACITY = 187
 H2_CAPACITY = 226
+DATE_FMT = "%Y-%m-%d"
 
 
 def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
@@ -30,14 +31,14 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
     Parameters:
         - df_res (pandas.DataFrame, required): future-looking
           reservations DataFrame containing "will_cancel" column
-        - as_of_date (str ("%Y-%m-%d"), optional): resulting
+        - as_of_date (str (DATE_FMT), optional): resulting
           day-by-days DataFrame will start on this day
         - cxl_type (str, optional): either "a" (actual) or "p"
           (predicted). Default      value is "p".
     """
 
     df_dates = df_otb.copy()
-    date = pd.to_datetime(as_of_date, format="%Y-%m-%d")
+    date = pd.to_datetime(as_of_date, format=DATE_FMT)
     if date + pd.DateOffset(31) > datetime.date(2017, 8, 31):
         end_date = datetime.date(2017, 8, 31)
     else:
@@ -49,7 +50,7 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
 
     while date <= end_date:
 
-        stay_date_str = datetime.datetime.strftime(date, format="%Y-%m-%d")
+        stay_date_str = datetime.datetime.strftime(date, format=DATE_FMT)
         # initialize date dict, which will go into nightly_stats as:
         # {'date': {'stat': 'val', 'stat', 'val'}}
         night_df = get_otb_res(df_res, stay_date_str)
@@ -65,8 +66,8 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
         date += delta
 
     df_sim = pd.DataFrame(nightly_stats).transpose().fillna(0)
-    df_sim.index = pd.to_datetime(df_sim.index, format="%Y-%m-%d")
-    df_sim["Date"] = pd.to_datetime(df_sim.index, format="%Y-%m-%d")
+    df_sim.index = pd.to_datetime(df_sim.index, format=DATE_FMT)
+    df_sim["Date"] = pd.to_datetime(df_sim.index, format=DATE_FMT)
     df_sim["TM05_Date"] = df_sim.Date - pd.DateOffset(5)
     df_sim["TM15_Date"] = df_sim.Date - pd.DateOffset(15)
     df_sim["TM30_Date"] = df_sim.Date - pd.DateOffset(30)
@@ -75,7 +76,7 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
         lambda x: x["Date"] + pd.DateOffset(weekday=6), axis=1
     )
 
-    dow = pd.to_datetime(df_sim.index, format="%Y-%m-%d")
+    dow = pd.to_datetime(df_sim.index, format=DATE_FMT)
     dow = dow.strftime("%a")
     df_sim.insert(0, "DOW", dow)
     df_sim["WE"] = (df_sim.DOW == "Fri") | (df_sim.DOW == "Sat")
@@ -86,9 +87,7 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
         years=-1, weekday=pd.to_datetime(x).weekday()
     )
 
-    df_sim["STLY_Date"] = pd.to_datetime(
-        df_sim.index.map(stly_lambda), format="%Y-%m-%d"
-    )
+    df_sim["STLY_Date"] = pd.to_datetime(df_sim.index.map(stly_lambda), format=DATE_FMT)
 
     return df_sim
 
@@ -99,7 +98,7 @@ def aggregate_reservations(night_df, date_string):
     ______
     Parameters:
         - night_df (pd.DataFrame, required): All OTB reservations that are touching as_of_date.
-        - date_string (required, "%Y-%m-%d")
+        - date_string (required, DATE_FMT)
     """
     date_stats = defaultdict(int)
     date_stats["RoomsOTB"] += len(night_df)
@@ -145,7 +144,7 @@ def add_sim_cols(df_sim, df_dbd, capacity, include_lya=True):
         - 'DOW' (day-of-week)
         - 'WD' (weekday - binary)
         - 'WE' (weekend - binary)
-        - 'STLY_Date' (datetime "%Y-%m-%d")
+        - 'STLY_Date' (datetime DATE_FMT)
         - 'LYA_' cols (last year actual RoomsSold, ADR, Rev, CXL'd)
     _____
     Parameters:
@@ -180,7 +179,7 @@ def add_sim_cols(df_sim, df_dbd, capacity, include_lya=True):
 
     def apply_ly_cols(row):
         stly_date = row["STLY_Date"]
-        stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
+        stly_date_str = datetime.datetime.strftime(stly_date, format=DATE_FMT)
         df_lya = list(
             df_dbd.loc[
                 stly_date_str, ["RoomsSold", "ADR", "RoomRev", "RevPAR", "NumCancels"]
@@ -205,14 +204,14 @@ def add_pricing(df_sim):
     This gives us an indication of what the hotel's online selling prices.
     """
     # get average WD/WE pricing for each week
-    df_sim.index = pd.to_datetime(df_sim.index, format="%Y-%m-%d")
+    df_sim.index = pd.to_datetime(df_sim.index, format=DATE_FMT)
     df_pricing = (
         df_sim[["Trn_RoomsOTB", "Trn_RevOTB", "WD"]]
         .groupby([pd.Grouper(freq="1W"), "WD"])
         .agg("sum")
     )
     df_pricing = df_pricing.reset_index().rename(columns={"level_0": "Date"})
-    df_pricing["Date"] = pd.to_datetime(df_pricing.Date, format="%Y-%m-%d")
+    df_pricing["Date"] = pd.to_datetime(df_pricing.Date, format=DATE_FMT)
     df_pricing["Trn_ADR_OTB"] = round(
         df_pricing.Trn_RevOTB / df_pricing.Trn_RoomsOTB, 2
     )
@@ -221,7 +220,7 @@ def add_pricing(df_sim):
     # apply the weekly WD/WE prices to the original df_sim
     def apply_rates(row):
         wd = row["WD"] == 1
-        week_end = datetime.datetime.strftime(row.WeekEndDate, format="%Y-%m-%d")
+        week_end = datetime.datetime.strftime(row.WeekEndDate, format=DATE_FMT)
         mask = df_pricing.WD == wd
         price = df_pricing[mask].loc[week_end, "Trn_ADR_OTB"]
         return price
@@ -238,10 +237,10 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
 
     def apply_tminus_stats(row, tm_date_col):
         night = row["Date"]
-        night_ds = datetime.datetime.strftime(row["Date"], format="%Y-%m-%d")
+        night_ds = datetime.datetime.strftime(row["Date"], format=DATE_FMT)
         # print(f"night: {night}")
         tminus_date = row[tm_date_col]
-        tminus_ds = datetime.datetime.strftime(tminus_date, format="%Y-%m-%d")
+        tminus_ds = datetime.datetime.strftime(tminus_date, format=DATE_FMT)
         # print(f"tminus_ds: {tminus_ds}")
         tminus_otb = get_otb_res(df_res, tminus_ds)
         mask = (tminus_otb["ArrivalDate"] <= night_ds) & (
@@ -330,11 +329,11 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
 
         # pull stly
         stay_date = row["STLY_Date"]
-        stay_date_str = datetime.datetime.strftime(stay_date, format="%Y-%m-%d")
+        stay_date_str = datetime.datetime.strftime(stay_date, format=DATE_FMT)
         stly_date = pd.to_datetime(as_of_date) + relativedelta(
             years=-1, weekday=pd.to_datetime(as_of_date).weekday()
         )
-        stly_date_str = datetime.datetime.strftime(stly_date, format="%Y-%m-%d")
+        stly_date_str = datetime.datetime.strftime(stly_date, format=DATE_FMT)
         print(
             f"Pulling stats from STLY date {stly_date_str}, stay_date {stay_date_str}..."
         )
@@ -546,13 +545,13 @@ def generate_simulation(
     ____
     Parameters:
         - df_dbd (DataFrame, required)
-        - as_of_date (str "%Y-%m-%d", required): date of simulation
+        - as_of_date (str DATE_FMT, required): date of simulation
         - hotel_num (int, required): 1 for h1 and 2 for h2
         - df_res (DataFrame, required)
         - confusion (bool, optional): whether or not to print a confusion matrix plot for STLY cancellations.
     """
     assert hotel_num in [1, 2], ValueError("Invalid hotel_num.")
-    aod_dt = pd.to_datetime(as_of_date, format="%Y-%m-%d")
+    aod_dt = pd.to_datetime(as_of_date, format=DATE_FMT)
     min_dt = datetime.date(2015, 7, 1)
     assert aod_dt > min_dt, ValueError("as_of_date must be between 7/1/16 and 8/30/17")
     print("Preparing crystal ball...")

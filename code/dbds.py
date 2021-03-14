@@ -11,6 +11,8 @@ from dateutil.relativedelta import *
 from features import X1_cxl_cols, X2_cxl_cols
 from xgboost import XGBClassifier
 
+DATE_FMT = "%Y-%m-%d"
+
 
 def parse_dates(df_res):
     """
@@ -148,10 +150,10 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
     ____
     Parameters:
         - df_res (pandas.DataFrame, required): reservations DataFrame
-        - first_date (str ("%Y-%m-%d"), optional): resulting day-by-days DataFrame will start on this day
+        - first_date (str (DATE_FMT), optional): resulting day-by-days DataFrame will start on this day
     """
     df_dates = df_res.copy()
-    date = pd.to_datetime(first_date, format="%Y-%m-%d")
+    date = pd.to_datetime(first_date, format=DATE_FMT)
     end_date = datetime.date(2017, 8, 31)
     delta = datetime.timedelta(days=1)
     max_los = int(df_dates["LOS"].max())
@@ -160,7 +162,7 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
 
     while date <= end_date:
 
-        date_string = datetime.datetime.strftime(date, format="%Y-%m-%d")
+        date_string = datetime.datetime.strftime(date, format=DATE_FMT)
         tminus = 0
 
         # initialize date dict, which will go into nightly_stats as {'date': {'stat': 'val', 'stat', 'val'}}
@@ -213,7 +215,7 @@ def add_dbd_columns(df_dbd, capacity):
         - 'DOW' (day-of-week)
         - 'WD' (weekday - binary)
         - 'WE' (weekend - binary)
-        - 'STLY_Date' (datetime "%Y-%m-%d")
+        - 'STLY_Date' (datetime DATE_FMT)
         - 'NumCancels'
 
     _____
@@ -236,7 +238,7 @@ def add_dbd_columns(df_dbd, capacity):
     df_dbd["Grp_RevPAR"] = round(df_dbd.Grp_RoomRev / df_dbd.Grp_RoomsSold, 2)
     df_dbd["Cnt_RevPAR"] = round(df_dbd.Cnt_RoomRev / df_dbd.Cnt_RoomsSold, 2)
 
-    dow = pd.to_datetime(df_dbd.index, format="%Y-%m-%d")
+    dow = pd.to_datetime(df_dbd.index, format=DATE_FMT)
     dow = dow.strftime("%a")
     df_dbd.insert(0, "DOW", dow)
     df_dbd["WE"] = (df_dbd.DOW == "Fri") | (df_dbd.DOW == "Sat")
@@ -272,7 +274,7 @@ def add_dbd_columns(df_dbd, capacity):
     )
     df_dbd["STLY_Date"] = df_dbd.index.map(stly_lambda)
 
-    df_dbd.index = pd.to_datetime(df_dbd.index, format="%Y-%m-%d")
+    df_dbd.index = pd.to_datetime(df_dbd.index, format=DATE_FMT)
     df_dbd.fillna(0, inplace=True)
 
     return df_dbd
