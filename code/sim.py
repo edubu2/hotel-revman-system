@@ -38,7 +38,10 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
 
     df_dates = df_otb.copy()
     date = pd.to_datetime(as_of_date, format="%Y-%m-%d")
-    end_date = datetime.date(2017, 8, 31)
+    if date + pd.DateOffset(31) > datetime.date(2017, 8, 31):
+        end_date = datetime.date(2017, 8, 31)
+    else:
+        end_date = date + pd.DateOffset(31)
     delta = datetime.timedelta(days=1)
     max_los = int(df_dates["LOS"].max())
 
@@ -130,7 +133,7 @@ def aggregate_reservations(night_df, date_string):
     return date_stats
 
 
-def add_sim_cols(df_sim, df_dbd, capacity):
+def add_sim_cols(df_sim, df_dbd, capacity, include_lya=True):
     """
     Adds several columns to df_sim, including:
         - 'Occ' (occupancy)
@@ -148,7 +151,7 @@ def add_sim_cols(df_sim, df_dbd, capacity):
         - capacity (int, required): number of rooms in the hotel
     """
     # add Occ/RevPAR/RemSupply columns'
-    df_sim["Occ"] = round(df_sim["RoomsOTB"] / capacity, 2)
+    df_sim["Occ"] = round(df_sim["RoomsOTB"].astype("int") / int(capacity), 2)
     df_sim["RevPAR"] = round(df_sim["RevOTB"] / capacity, 2)
     df_sim["RemSupply"] = (
         capacity - df_sim.RoomsOTB.astype(int) + df_sim.CxlForecast.astype(int)
@@ -183,9 +186,10 @@ def add_sim_cols(df_sim, df_dbd, capacity):
         )
         return tuple(df_lya)
 
-    df_sim[
-        ["LYA_RoomsSold", "LYA_ADR", "LYA_RoomRev", "LYA_RevPAR", "LYA_NumCancels"]
-    ] = df_sim.apply(apply_ly_cols, axis=1, result_type="expand")
+    if include_lya:
+        df_sim[
+            ["LYA_RoomsSold", "LYA_ADR", "LYA_RoomRev", "LYA_RevPAR", "LYA_NumCancels"]
+        ] = df_sim.apply(apply_ly_cols, axis=1, result_type="expand")
 
     df_sim.fillna(0, inplace=True)
     return df_sim
@@ -225,51 +229,58 @@ def add_pricing(df_sim):
     return df_sim
 
 
-def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
+def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
     """
     This function adds booking statistics for a given date compared to the same date LY.
     """
 
     def apply_tminus_stats(row, n_days):
-        tminus_date = row["Date"] - pd.DateOffset(n_days)
+        night = datetime.datetime.strftime(row["Date"], format="%Y-%m-%d")
+        # print(f"night: {night}")
+        tminus_date = pd.to_datetime(
+            row["Date"] - pd.DateOffset(n_days), format="%Y-%m-%d"
+        )
         tminus_ds = datetime.datetime.strftime(tminus_date, format="%Y-%m-%d")
+        # print(f"tminus_ds: {tminus_ds}")
         tminus_otb = get_otb_res(df_res, tminus_ds)
-        mask = (tminus_otb["ArrivalDate"] <= tminus_ds) & (
-            tminus_otb["CheckoutDate"] > tminus_ds
+        mask = (tminus_otb["ArrivalDate"] <= night) & (
+            tminus_otb["CheckoutDate"] > night
         )
 
         tminus_otb = tminus_otb[mask].copy()
+        # print("tminus setup_sim...")
         tm_sim = setup_sim(tminus_otb, df_res, tminus_ds)
-        tm_sim = add_sim_cols(tm_sim, df_dbd, capacity)
+        # print("tminus add_sim_cols...")
+        tm_sim = add_sim_cols(tm_sim, df_dbd, capacity, include_lya=False)
+        # print("tminus add_pricing...")
         tm_sim = add_pricing(tm_sim)
-        TM_OTB = float(tm_sim.loc[tminus_ds, "RoomsOTB"])
-        TM_REV = float(tm_sim.loc[tminus_ds, "ADR_OTB"])
-        TM_ADR = round(TM_REV / TM_OTB, 2)
-        TM_SELLPRICE = float(tm_sim.loc[tminus_ds, "SellingPrice"])
-        TM_CxlForecast = float(tm_sim.loc[tminus_ds, "CxlForecast"])
+        # print("Calculating tminus stats....")
+        TM_OTB = float(tm_sim.loc[night, "RoomsOTB"])
+        TM_ADR = float(tm_sim.loc[night, "ADR_OTB"])
+        TM_SELLPRICE = float(tm_sim.loc[night, "SellingPrice"])
 
         try:
-            TM_TRN_OTB = float(tm_sim.loc[tminus_ds, "Trn_RoomsOTB"])
-            TM_TRN_ADR = float(tm_sim.loc[tminus_ds, "Trn_ADR_OTB"])
+            TM_TRN_OTB = float(tm_sim.loc[night, "Trn_RoomsOTB"])
+            TM_TRN_ADR = float(tm_sim.loc[night, "Trn_ADR_OTB"])
         except:
             TM_TRN_OTB = 0
             TM_TRN_ADR = 0
         try:
-            TM_TRNP_OTB = float(tm_sim.loc[tminus_ds, "TrnP_RoomsOTB"])
-            TM_TRNP_ADR = float(tm_sim.loc[tminus_ds, "TrnP_ADR_OTB"])
+            TM_TRNP_OTB = float(tm_sim.loc[night, "TrnP_RoomsOTB"])
+            TM_TRNP_ADR = float(tm_sim.loc[night, "TrnP_ADR_OTB"])
 
         except:
             TM_TRNP_OTB = 0
             TM_TRNP_ADR = 0
         try:
-            TM_GRP_OTB = float(tm_sim.loc[tminus_ds, "Grp_RoomsOTB"])
-            TM_GRP_ADR = float(tm_sim.loc[tminus_ds, "Grp_ADR_OTB"])
+            TM_GRP_OTB = float(tm_sim.loc[night, "Grp_RoomsOTB"])
+            TM_GRP_ADR = float(tm_sim.loc[night, "Grp_ADR_OTB"])
         except:
             TM_GRP_OTB = 0
             TM_GRP_ADR = 0
         try:
-            TM_CNT_OTB = float(tm_sim.loc[tminus_ds, "Cnt_RoomsOTB"])
-            TM_CNT_ADR = float(tm_sim.loc[tminus_ds, "Cnt_ADR_OTB"])
+            TM_CNT_OTB = float(tm_sim.loc[night, "Cnt_RoomsOTB"])
+            TM_CNT_ADR = float(tm_sim.loc[night, "Cnt_ADR_OTB"])
         except:
             TM_CNT_OTB = 0
             TM_CNT_ADR = 0
@@ -346,9 +357,7 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity):
         stly_otb = stly_otb[mask].copy()
         stly_sim = setup_sim(stly_otb, df_res, stly_date_str)
         stly_sim = add_pricing(stly_sim)
-        stly_sim = add_tminus_cols(
-            stly_sim, df_dbd, df_res, hotel_num, stly_date_str, capacity
-        )
+        stly_sim = add_tminus_cols(stly_sim, df_dbd, df_res, hotel_num, capacity)
         STLY_OTB = float(stly_sim.loc[stly_date_str, "RoomsOTB"])
         STLY_REV = float(stly_sim.loc[stly_date_str, "RevOTB"])
         STLY_ADR = round(STLY_REV / STLY_OTB, 2)
@@ -603,7 +612,7 @@ def generate_simulation(df_dbd, as_of_date, hotel_num, df_res):
     df_sim = add_sim_cols(df_sim, df_dbd, capacity)
     print("Estimating prices...")
     df_sim = add_pricing(df_sim)
-    df_sim = add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity)
+    df_sim = add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity)
     df_sim = add_stly_cols(
         df_sim,
         df_dbd,
