@@ -131,3 +131,4 @@ def make_confusion_matrix(
             save_to, dpi=170, facecolor=facecolor, bbox_inches="tight", pad_inches=1.6
         )
     plt.show()
+    return
