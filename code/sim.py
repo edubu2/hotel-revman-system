@@ -13,12 +13,13 @@ import datetime
 import pandas as pd
 import numpy as np
 from dateutil.relativedelta import relativedelta
+from utils import stly_cols
 from model_cancellations import get_otb_res, predict_cancellations
 
 H1_CAPACITY = 187
 H2_CAPACITY = 226
 DATE_FMT = "%Y-%m-%d"
-SIM_CSV_FP = f"./sims/h1_sim_{}.csv"
+SIM_CSV_FP = "./sims/h{}_sim_{}.csv"
 
 
 def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
@@ -337,197 +338,32 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbo
             print(
                 f"Pulling stats from STLY date {stly_date_str}, stay_date {stay_date_str}..."
             )
-        # stly_otb = predict_cancellations(
-        #     df_res, stly_date_str, hotel_num, confusion=False
-        # )
-        stly_otb = get_otb_res(df_res, stly_date_str)
-        mask = (stly_otb["ArrivalDate"] <= stay_date_str) & (
-            stly_otb["CheckoutDate"] > stay_date_str
+
+        stly_sim = pd.read_csv(
+            SIM_CSV_FP.format(str(hotel_num), stly_date_str),
+            parse_dates=[
+                "Date",
+                "TM05_Date",
+                "TM15_Date",
+                "TM30_Date",
+                "STLY_Date",
+                "WeekEndDate",
+            ],
         )
+        stly_sim.drop(columns={"Unnamed: 0": "Date"}, inplace=True, errors="ignore")
+        stly_sim.index = stly_sim.Date
+        stly_stats = []
+        for col in stly_cols:
+            stat = float(stly_sim.loc[stay_date_str, col])
+            stly_stats.append(stat)
 
-        stly_otb = stly_otb[mask].copy()
-        stly_sim = setup_sim(stly_otb, df_res, stly_date_str)
-        stly_sim = add_sim_cols(stly_sim, df_dbd, capacity, include_lya=False)
-        stly_sim = add_pricing(stly_sim)
-        stly_sim = add_tminus_cols(stly_sim, df_dbd, df_res, hotel_num, capacity)
-        STLY_OTB = float(stly_sim.loc[stay_date_str, "RoomsOTB"])
-        STLY_REV = float(stly_sim.loc[stay_date_str, "RevOTB"])
-        STLY_ADR = round(STLY_REV / STLY_OTB, 2)
-        STLY_SELLPRICE = float(stly_sim.loc[stay_date_str, "SellingPrice"])
-        # STLY_CxlForecast = float(stly_sim.loc[stay_date_str, "CxlForecast"])
-        STLY_TM05_OTB = float(stly_sim.loc[stay_date_str, "TM05_RoomsOTB"])
-        STLY_TM05_ADR = float(stly_sim.loc[stay_date_str, "TM15_ADR"])
-        STLY_TM15_OTB = float(stly_sim.loc[stay_date_str, "TM15_RoomsOTB"])
-        STLY_TM15_ADR = float(stly_sim.loc[stay_date_str, "TM05_ADR"])
-        STLY_TM30_OTB = float(stly_sim.loc[stay_date_str, "TM30_RoomsOTB"])
-        STLY_TM30_ADR = float(stly_sim.loc[stay_date_str, "TM30_ADR"])
-
-        try:
-            STLY_TRN_OTB = float(stly_sim.loc[stay_date_str, "Trn_RoomsOTB"])
-            STLY_TRN_ADR = float(stly_sim.loc[stay_date_str, "Trn_ADR_OTB"])
-            # STLY_TRN_CXL = float(stly_sim.loc[stay_date_str, "Trn_CxlForecast"])
-            STLY_TM05_TRN_OTB = float(stly_sim.loc[stay_date_str, "TM05_TRN_OTB"])
-            STLY_TM05_TRN_ADR = float(stly_sim.loc[stay_date_str, "TM05_TRN_ADR"])
-            STLY_TM15_TRN_OTB = float(stly_sim.loc[stay_date_str, "TM15_TRN_OTB"])
-            STLY_TM15_TRN_ADR = float(stly_sim.loc[stay_date_str, "TM15_TRN_ADR"])
-            STLY_TM30_TRN_OTB = float(stly_sim.loc[stay_date_str, "TM30_TRN_OTB"])
-            STLY_TM30_TRN_ADR = float(stly_sim.loc[stay_date_str, "TM30_TRN_ADR"])
-        except:
-            STLY_TRN_OTB = 0
-            STLY_TRN_ADR = 0
-            # STLY_TRN_CXL = 0
-            STLY_TM05_TRN_OTB = 0
-            STLY_TM05_TRN_ADR = 0
-            STLY_TM15_TRN_OTB = 0
-            STLY_TM15_TRN_ADR = 0
-            STLY_TM30_TRN_OTB = 0
-            STLY_TM30_TRN_ADR = 0
-        try:
-            STLY_TRNP_OTB = float(stly_sim.loc[stay_date_str, "TrnP_RoomsOTB"])
-            STLY_TRNP_ADR = float(stly_sim.loc[stay_date_str, "TrnP_ADR_OTB"])
-            STLY_TM05_TRNP_OTB = float(stly_sim.loc[stay_date_str, "TM05_TRNP_OTB"])
-            STLY_TM05_TRNP_ADR = float(stly_sim.loc[stay_date_str, "TM05_TRNP_ADR"])
-            STLY_TM15_TRNP_OTB = float(stly_sim.loc[stay_date_str, "TM15_TRNP_OTB"])
-            STLY_TM15_TRNP_ADR = float(stly_sim.loc[stay_date_str, "TM15_TRNP_ADR"])
-            STLY_TM30_TRNP_OTB = float(stly_sim.loc[stay_date_str, "TM30_TRNP_OTB"])
-            STLY_TM30_TRNP_ADR = float(stly_sim.loc[stay_date_str, "TM30_TRNP_ADR"])
-        except:
-            STLY_TRNP_OTB = 0
-            STLY_TRNP_ADR = 0
-            STLY_TM05_TRNP_OTB = 0
-            STLY_TM05_TRNP_ADR = 0
-            STLY_TM15_TRNP_OTB = 0
-            STLY_TM15_TRNP_ADR = 0
-            STLY_TM30_TRNP_OTB = 0
-            STLY_TM30_TRNP_ADR = 0
-        try:
-            STLY_GRP_OTB = float(stly_sim.loc[stay_date_str, "Grp_RoomsOTB"])
-            STLY_GRP_ADR = float(stly_sim.loc[stay_date_str, "Grp_ADR_OTB"])
-            STLY_TM05_GRP_OTB = float(stly_sim.loc[stay_date_str, "TM05_GRP_OTB"])
-            STLY_TM05_GRP_ADR = float(stly_sim.loc[stay_date_str, "TM05_GRP_ADR"])
-            STLY_TM15_GRP_OTB = float(stly_sim.loc[stay_date_str, "TM15_GRP_OTB"])
-            STLY_TM15_GRP_ADR = float(stly_sim.loc[stay_date_str, "TM15_GRP_ADR"])
-            STLY_TM30_GRP_OTB = float(stly_sim.loc[stay_date_str, "TM30_GRP_OTB"])
-            STLY_TM30_GRP_ADR = float(stly_sim.loc[stay_date_str, "TM30_GRP_ADR"])
-        except:
-            STLY_GRP_OTB = 0
-            STLY_GRP_ADR = 0
-            STLY_TM05_GRP_OTB = 0
-            STLY_TM05_GRP_ADR = 0
-            STLY_TM15_GRP_OTB = 0
-            STLY_TM15_GRP_ADR = 0
-            STLY_TM30_GRP_OTB = 0
-            STLY_TM30_GRP_ADR = 0
-        try:
-            STLY_CNT_OTB = float(stly_sim.loc[stay_date_str, "Cnt_RoomsOTB"])
-            STLY_CNT_ADR = float(stly_sim.loc[stay_date_str, "Cnt_ADR_OTB"])
-            STLY_TM05_CNT_OTB = float(stly_sim.loc[stay_date_str, "TM05_CNT_OTB"])
-            STLY_TM05_CNT_ADR = float(stly_sim.loc[stay_date_str, "TM05_CNT_ADR"])
-            STLY_TM15_CNT_OTB = float(stly_sim.loc[stay_date_str, "TM15_CNT_OTB"])
-            STLY_TM15_CNT_ADR = float(stly_sim.loc[stay_date_str, "TM15_CNT_ADR"])
-            STLY_TM30_CNT_OTB = float(stly_sim.loc[stay_date_str, "TM30_CNT_OTB"])
-            STLY_TM30_CNT_ADR = float(stly_sim.loc[stay_date_str, "TM30_CNT_ADR"])
-        except:
-            STLY_CNT_OTB = 0
-            STLY_CNT_ADR = 0
-            STLY_TM05_CNT_OTB = 0
-            STLY_TM05_CNT_ADR = 0
-            STLY_TM15_CNT_OTB = 0
-            STLY_TM15_CNT_ADR = 0
-            STLY_TM30_CNT_OTB = 0
-            STLY_TM30_CNT_ADR = 0
-
-        return (
-            STLY_OTB,
-            STLY_ADR,
-            STLY_SELLPRICE,
-            STLY_TRN_OTB,
-            STLY_TRN_ADR,
-            STLY_TRNP_OTB,
-            STLY_TRNP_ADR,
-            STLY_GRP_OTB,
-            STLY_GRP_ADR,
-            STLY_CNT_OTB,
-            STLY_CNT_ADR,
-            STLY_TM05_OTB,
-            STLY_TM05_ADR,
-            STLY_TM15_OTB,
-            STLY_TM15_ADR,
-            STLY_TM30_OTB,
-            STLY_TM30_ADR,
-            STLY_TM05_TRN_OTB,
-            STLY_TM05_TRN_ADR,
-            STLY_TM15_TRN_OTB,
-            STLY_TM15_TRN_ADR,
-            STLY_TM30_TRN_OTB,
-            STLY_TM30_TRN_ADR,
-            STLY_TM05_TRNP_OTB,
-            STLY_TM05_TRNP_ADR,
-            STLY_TM15_TRNP_OTB,
-            STLY_TM15_TRNP_ADR,
-            STLY_TM30_TRNP_OTB,
-            STLY_TM30_TRNP_ADR,
-            STLY_TM05_GRP_OTB,
-            STLY_TM05_GRP_ADR,
-            STLY_TM15_GRP_OTB,
-            STLY_TM15_GRP_ADR,
-            STLY_TM30_GRP_OTB,
-            STLY_TM30_GRP_ADR,
-            STLY_TM05_CNT_OTB,
-            STLY_TM05_CNT_ADR,
-            STLY_TM15_CNT_OTB,
-            STLY_TM15_CNT_ADR,
-            STLY_TM30_CNT_OTB,
-            STLY_TM30_CNT_ADR,
-        )
+        return tuple(stly_stats)
 
     if verbose > 0:
         num_models = len(df_sim)
         print(f"Training {num_models} models to obtain STLY statistics...\n")
 
-    new_col_names = [
-        "STLY_OTB",
-        "STLY_ADR",
-        "STLY_SellingPrice",
-        "STLY_TRN_OTB",
-        "STLY_TRN_ADR",
-        "STLY_TRNP_OTB",
-        "STLY_TRNP_ADR",
-        "STLY_GRP_OTB",
-        "STLY_GRP_ADR",
-        "STLY_CNT_OTB",
-        "STLY_CNT_ADR",
-        "STLY_TM05_OTB",
-        "STLY_TM05_ADR",
-        "STLY_TM15_OTB",
-        "STLY_TM15_ADR",
-        "STLY_TM30_OTB",
-        "STLY_TM30_ADR",
-        "STLY_TM05_TRN_OTB",
-        "STLY_TM05_TRN_ADR",
-        "STLY_TM15_TRN_OTB",
-        "STLY_TM15_TRN_ADR",
-        "STLY_TM30_TRN_OTB",
-        "STLY_TM30_TRN_ADR",
-        "STLY_TM05_TRNP_OTB",
-        "STLY_TM05_TRNP_ADR",
-        "STLY_TM15_TRNP_OTB",
-        "STLY_TM15_TRNP_ADR",
-        "STLY_TM30_TRNP_OTB",
-        "STLY_TM30_TRNP_ADR",
-        "STLY_TM05_GRP_OTB",
-        "STLY_TM05_GRP_ADR",
-        "STLY_TM15_GRP_OTB",
-        "STLY_TM15_GRP_ADR",
-        "STLY_TM30_GRP_OTB",
-        "STLY_TM30_GRP_ADR",
-        "STLY_TM05_CNT_OTB",
-        "STLY_TM05_CNT_ADR",
-        "STLY_TM15_CNT_OTB",
-        "STLY_TM15_CNT_ADR",
-        "STLY_TM30_CNT_OTB",
-        "STLY_TM30_CNT_ADR",
-    ]
+    new_col_names = ["STLY_" + col for col in stly_cols]
     df_sim[new_col_names] = df_sim.apply(
         apply_STLY_stats, result_type="expand", axis="columns"
     )
