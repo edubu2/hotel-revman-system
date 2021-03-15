@@ -107,7 +107,7 @@ def make_confusion_matrix(
         "family": "Arial",
         "color": label_color,
         "weight": "bold",
-        "size": 27,
+        "size": 24,
     }
 
     sns.heatmap(
@@ -121,7 +121,7 @@ def make_confusion_matrix(
     )
 
     if title == None:
-        title = "Confusion Matrix"
+        title = "Confusion Matrix for Predicted Cancellations"
     plt.title(title, fontdict=label_font)
     plt.xlabel("Prediction", fontdict=label_font)
     plt.ylabel("Actual", fontdict=label_font)
