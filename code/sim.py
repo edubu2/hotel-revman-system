@@ -198,36 +198,47 @@ def add_sim_cols(df_sim, df_dbd, capacity, include_lya=True):
     return df_sim
 
 
-def add_pricing(df_sim):
+def add_cxl_cols(df_sim, df_res, as_of_date):
+    """Adds total num of realized cancels as of as_of_date for each future date."""
+
+    def cxl_mapper(night):
+        night_ds = datetime.datetime.strftime(night, format=DATE_FMT)
+
+        mask = (
+            (df_res.IsCanceled == 1)
+            & (df_res.ReservationStatusDate <= as_of_date)
+            & (df_res.ArrivalDate <= night_ds)
+            & (df_res.CheckoutDate > night_ds)
+        )
+        df_cxl_res = df_res[mask].copy()
+        return len(df_cxl_res)
+
+    df_sim["Realized_Cxls"] = df_sim["Date"].map(cxl_mapper)
+    return df_sim
+
+
+def add_pricing(df_sim, df_res):
     """
     Adds 'SellingPrice' column to df_sim.
 
-    Contains the average rate for all booked reservations during a given week (WD/WE).
-    This gives us an indication of what the hotel's online selling prices.
+    Contains the average TRANSIENT rate for all booked reservations during a given week,
+    including those that cancelled at any time.
     """
-    # get average WD/WE pricing for each week
-    df_sim.index = pd.to_datetime(df_sim.index, format=DATE_FMT)
-    df_pricing = (
-        df_sim[["Trn_RoomsOTB", "Trn_RevOTB", "WD"]]
-        .groupby([pd.Grouper(freq="1W"), "WD"])
-        .agg("sum")
-    )
-    df_pricing = df_pricing.reset_index().rename(columns={"level_0": "Date"})
-    df_pricing["Date"] = pd.to_datetime(df_pricing.Date, format=DATE_FMT)
-    df_pricing["Trn_ADR_OTB"] = round(
-        df_pricing.Trn_RevOTB / df_pricing.Trn_RoomsOTB, 2
-    )
-    df_pricing.index = df_pricing.Date
 
     # apply the weekly WD/WE prices to the original df_sim
-    def apply_rates(row):
-        wd = row["WD"] == 1
-        week_end = datetime.datetime.strftime(row.WeekEndDate, format=DATE_FMT)
-        mask = df_pricing.WD == wd
-        price = df_pricing[mask].loc[week_end, "Trn_ADR_OTB"]
+    def rate_mapper(night):
+        night_ds = datetime.datetime.strftime(night, format=DATE_FMT)
+
+        mask = (
+            (df_res.ArrivalDate <= night_ds)
+            & (df_res.CheckoutDate > night_ds)
+            & (df_res.CustomerType == "Transient")
+        )
+        df_pricing_res = df_res[mask].copy()
+        price = round(df_pricing_res.ADR.mean(), 2)
         return price
 
-    df_sim["SellingPrice"] = df_sim.apply(apply_rates, axis=1)
+    df_sim["SellingPrice"] = df_sim["Date"].map(rate_mapper)
 
     return df_sim
 
@@ -391,13 +402,12 @@ def generate_simulation(
         - pull_stly (bool, optional): whether or not to pull stly stats for sim.
         - verbose (int, optional): if zero, print statements will be suppressed.
     """
-    assert hotel_num in [1, 2], ValueError("Invalid hotel_num.")
     aod_dt = pd.to_datetime(as_of_date, format=DATE_FMT)
     min_dt = datetime.date(2015, 7, 1)
-    assert aod_dt > min_dt, ValueError("as_of_date must be between 7/1/16 and 8/30/17")
-    if verbose > 0:
-        print("Preparing crystal ball...")
-        print("Predicting cancellations on all future reservations...")
+    assert hotel_num in [1, 2], ValueError(
+        "Invalid hotel_num. Must be (integer) 1 or 2."
+    )
+    assert aod_dt > min_dt, ValueError("as_of_date must be between 7/1/16 and 8/30/17.")
     # df_otb = get_otb_res(df_res, as_of_date)
     df_otb = predict_cancellations(
         df_res,
@@ -419,10 +429,11 @@ def generate_simulation(
         as_of_date,
     )
     df_sim = add_sim_cols(df_sim, df_dbd, capacity)
+    df_sim = add_cxl_cols(df_sim, df_res, as_of_date)
 
     if verbose > 0:
         print("Estimating prices...")
-    df_sim = add_pricing(df_sim)
+    df_sim = add_pricing(df_sim, df_res)
 
     if verbose > 0:
         print("Pulling T-Minus OTB statistics...")
