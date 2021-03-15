@@ -61,4 +61,5 @@ def main(h1_dbd, h1_res, h2_dbd, h2_res):
     return
 
 
-main(H1_DBD, H1_RES, H2_DBD, H2_RES)
+if __name__ == "__main__":
+    main(H1_DBD, H1_RES, H2_DBD, H2_RES)
