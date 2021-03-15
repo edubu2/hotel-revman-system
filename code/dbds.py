@@ -189,17 +189,17 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
         )
 
         if "Transient" in list(df_night.index):
-            day_stats["Trn_RoomsSold"] += df_night.loc["Transient", "RS"]
-            day_stats["Trn_RoomRev"] += df_night.loc["Transient", "Rev"]
+            day_stats["TRN_RoomsSold"] += df_night.loc["Transient", "RS"]
+            day_stats["TRN_RoomRev"] += df_night.loc["Transient", "Rev"]
         if "Transient-Party" in list(df_night.index):
-            day_stats["TrnP_RoomsSold"] += df_night.loc["Transient-Party", "RS"]
-            day_stats["TrnP_RoomRev"] += df_night.loc["Transient-Party", "Rev"]
+            day_stats["TRNP_RoomsSold"] += df_night.loc["Transient-Party", "RS"]
+            day_stats["TRNP_RoomRev"] += df_night.loc["Transient-Party", "Rev"]
         if "Group" in list(df_night.index):
-            day_stats["Grp_RoomsSold"] += df_night.loc["Group", "RS"]
-            day_stats["Grp_RoomRev"] += df_night.loc["Group", "Rev"]
+            day_stats["GRP_RoomsSold"] += df_night.loc["Group", "RS"]
+            day_stats["GRP_RoomRev"] += df_night.loc["Group", "Rev"]
         if "Contract" in list(df_night.index):
-            day_stats["Cnt_RoomsSold"] += df_night.loc["Contract", "RS"]
-            day_stats["Cnt_RoomRev"] += df_night.loc["Contract", "Rev"]
+            day_stats["CNT_RoomsSold"] += df_night.loc["Contract", "RS"]
+            day_stats["CNT_RoomRev"] += df_night.loc["Contract", "Rev"]
 
         nightly_stats[date_string] = dict(day_stats)
         date += delta
@@ -229,14 +229,14 @@ def add_dbd_columns(df_dbd, capacity):
 
     # Add ADR by segment
     df_dbd["ADR"] = round(df_dbd.RoomRev / df_dbd.RoomsSold, 2)
-    df_dbd["Trn_ADR"] = round(df_dbd.Trn_RoomRev / df_dbd.Trn_RoomsSold, 2)
-    df_dbd["TrnP_ADR"] = round(df_dbd.TrnP_RoomRev / df_dbd.TrnP_RoomsSold, 2)
-    df_dbd["Grp_ADR"] = round(df_dbd.Grp_RoomRev / df_dbd.Grp_RoomsSold, 2)
-    df_dbd["Cnt_ADR"] = round(df_dbd.Cnt_RoomRev / df_dbd.Cnt_RoomsSold, 2)
-    df_dbd["Trn_RevPAR"] = round(df_dbd.Trn_RoomRev / df_dbd.Trn_RoomsSold, 2)
-    df_dbd["TrnP_RevPAR"] = round(df_dbd.TrnP_RoomRev / df_dbd.TrnP_RoomsSold, 2)
-    df_dbd["Grp_RevPAR"] = round(df_dbd.Grp_RoomRev / df_dbd.Grp_RoomsSold, 2)
-    df_dbd["Cnt_RevPAR"] = round(df_dbd.Cnt_RoomRev / df_dbd.Cnt_RoomsSold, 2)
+    df_dbd["TRN_ADR"] = round(df_dbd.TRN_RoomRev / df_dbd.TRN_RoomsSold, 2)
+    df_dbd["TRNP_ADR"] = round(df_dbd.TRNP_RoomRev / df_dbd.TRNP_RoomsSold, 2)
+    df_dbd["GRP_ADR"] = round(df_dbd.GRP_RoomRev / df_dbd.GRP_RoomsSold, 2)
+    df_dbd["CNT_ADR"] = round(df_dbd.CNT_RoomRev / df_dbd.CNT_RoomsSold, 2)
+    df_dbd["TRN_RevPAR"] = round(df_dbd.TRN_RoomRev / df_dbd.TRN_RoomsSold, 2)
+    df_dbd["TRNP_RevPAR"] = round(df_dbd.TRNP_RoomRev / df_dbd.TRNP_RoomsSold, 2)
+    df_dbd["GRP_RevPAR"] = round(df_dbd.GRP_RoomRev / df_dbd.GRP_RoomsSold, 2)
+    df_dbd["CNT_RevPAR"] = round(df_dbd.CNT_RoomRev / df_dbd.CNT_RoomsSold, 2)
 
     dow = pd.to_datetime(df_dbd.index, format=DATE_FMT)
     dow = dow.strftime("%a")
@@ -251,18 +251,18 @@ def add_dbd_columns(df_dbd, capacity):
         "RoomRev",
         "RevPAR",
         "NumCancels",
-        "Trn_RoomsSold",
-        "Trn_ADR",
-        "Trn_RoomRev",
-        "Grp_RoomsSold",
-        "Grp_ADR",
-        "Grp_RoomRev",
-        "TrnP_RoomsSold",
-        "TrnP_ADR",
-        "TrnP_RoomRev",
-        "Cnt_RoomsSold",
-        "Cnt_ADR",
-        "Cnt_RoomRev",
+        "TRN_RoomsSold",
+        "TRN_ADR",
+        "TRN_RoomRev",
+        "GRP_RoomsSold",
+        "GRP_ADR",
+        "GRP_RoomRev",
+        "TRNP_RoomsSold",
+        "TRNP_ADR",
+        "TRNP_RoomRev",
+        "CNT_RoomsSold",
+        "CNT_ADR",
+        "CNT_RoomRev",
         "WE",
         "WD",
     ]
