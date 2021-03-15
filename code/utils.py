@@ -41,3 +41,37 @@ stly_cols = [
     "TM30_CNT_OTB",
     "TM30_CNT_ADR",
 ]
+
+ly_cols = [
+    "Occ",
+    "RoomsSold",
+    "ADR",
+    "RoomRev",
+    "RevPAR",
+    "NumCancels",
+    "Trn_RoomsSold",
+    "Trn_ADR",
+    "Trn_RoomRev",
+    "Grp_RoomsSold",
+    "Grp_ADR",
+    "Grp_RoomRev",
+    "TrnP_RoomsSold",
+    "TrnP_ADR",
+    "TrnP_RoomRev",
+    "Cnt_RoomsSold",
+    "Cnt_ADR",
+    "Cnt_RoomRev",
+]
+
+tm_cols = [
+    "RoomsOTB",
+    "ADR",
+    "TRN_OTB",
+    "TRN_ADR",
+    "TRNP_OTB",
+    "TRNP_ADR",
+    "GRP_OTB",
+    "GRP_ADR",
+    "CNT_OTB",
+    "CNT_ADR",
+]

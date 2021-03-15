@@ -136,7 +136,7 @@ def aggregate_reservations(night_df, date_string):
     return date_stats
 
 
-def add_sim_cols(df_sim, df_dbd, capacity, include_lya=True):
+def add_sim_cols(df_sim, df_dbd, capacity):
     """
     Adds several columns to df_sim, including:
         - 'Occ' (occupancy)
@@ -186,9 +186,8 @@ def add_sim_cols(df_sim, df_dbd, capacity, include_lya=True):
         df_lya = list(df_dbd.loc[stly_date_str, ly_cols])
         return tuple(df_lya)
 
-    if include_lya:
-        ly_new_cols = ["LYA_" + col for col in ly_cols]
-        df_sim[ly_new_cols] = df_sim.apply(apply_ly_cols, axis=1, result_type="expand")
+    ly_new_cols = ["LYA_" + col for col in ly_cols]
+    df_sim[ly_new_cols] = df_sim.apply(apply_ly_cols, axis=1, result_type="expand")
 
     df_sim.fillna(0, inplace=True)
     return df_sim
@@ -350,7 +349,13 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbo
 
 
 def generate_simulation(
-    df_dbd, as_of_date, hotel_num, df_res, confusion=True, pull_stly=True, verbose=1
+    df_dbd,
+    as_of_date,
+    hotel_num,
+    df_res,
+    confusion=True,
+    pull_stly=True,
+    verbose=1,
 ):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
@@ -373,7 +378,9 @@ def generate_simulation(
     assert hotel_num in [1, 2], ValueError(
         "Invalid hotel_num. Must be (integer) 1 or 2."
     )
-    assert aod_dt > min_dt, ValueError("as_of_date must be between 7/1/16 and 8/30/17.")
+    assert aod_dt >= min_dt, ValueError(
+        "as_of_date must be between 7/1/16 and 8/30/17."
+    )
     # df_otb = get_otb_res(df_res, as_of_date)
     df_otb = predict_cancellations(
         df_res,
