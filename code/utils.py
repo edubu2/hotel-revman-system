@@ -1,4 +1,4 @@
-stly_cols = [
+stly_cols = [  # each must exist in all csv file column names
     "RoomsOTB",
     "ADR_OTB",
     "RevOTB",
@@ -83,7 +83,7 @@ ly_cols = [  # must match df_dbd col names
     "CNT_RoomRev",
 ]
 
-tm_cols = [
+tm_cols = [  # new col names (prefixes will be added)
     "RoomsOTB",
     "ADR_OTB",
     "RevOTB",
