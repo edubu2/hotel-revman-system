@@ -113,25 +113,21 @@ def aggregate_reservations(night_df, date_string):
         .rename(columns={"ResNum": "RS", "ADR": "Rev", "will_cancel": "CXL"})
     )
 
-    if "Transient" in list(tmp.index):
-        date_stats["Trn_RoomsOTB"] += tmp.loc["Transient", "RS"]
-        date_stats["Trn_RevOTB"] += tmp.loc["Transient", "Rev"]
-        date_stats["Trn_CxlForecast"] += tmp.loc["Transient", "CXL"]
-
-    if "Transient-Party" in list(tmp.index):
-        date_stats["TrnP_RoomsOTB"] += tmp.loc["Transient-Party", "RS"]
-        date_stats["TrnP_RevOTB"] += tmp.loc["Transient-Party", "Rev"]
-        date_stats["TrnP_CxlForecast"] += tmp.loc["Transient-Party", "CXL"]
-
-    if "Group" in list(tmp.index):
-        date_stats["Grp_RoomsOTB"] += tmp.loc["Group", "RS"]
-        date_stats["Grp_RevOTB"] += tmp.loc["Group", "Rev"]
-        date_stats["Grp_CxlForecast"] += tmp.loc["Group", "CXL"]
-
-    if "Contract" in list(tmp.index):
-        date_stats["Cnt_RoomsOTB"] += tmp.loc["Contract", "RS"]
-        date_stats["Cnt_RevOTB"] += tmp.loc["Contract", "Rev"]
-        date_stats["Cnt_CxlForecast"] += tmp.loc["Contract", "CXL"]
+    seg_codes = [
+        ("Transient", "TRN"),
+        ("Transient-Party", "TRNP"),
+        ("Group", "GRP"),
+        ("Contract", "CNT"),
+    ]
+    for seg, code in seg_codes:
+        if seg in list(tmp.index):
+            date_stats[code + "_RoomsOTB"] += tmp.loc[seg, "RS"]
+            date_stats[code + "_RevOTB"] += tmp.loc[seg, "Rev"]
+            date_stats[code + "_CxlForecast"] += tmp.loc[seg, "CXL"]
+        else:
+            date_stats[code + "_RoomsOTB"] += 0
+            date_stats[code + "_RevOTB"] += 0
+            date_stats[code + "_CxlForecast"] += 0
 
     return date_stats
 
@@ -162,22 +158,10 @@ def add_sim_cols(df_sim, df_dbd, capacity):
     # to avoid errors, only operate on existing columns
     # Add ADR by segment
     df_sim["ADR_OTB"] = round(df_sim.RevOTB / df_sim.RoomsOTB, 2)
-    try:
-        df_sim["Trn_ADR_OTB"] = round(df_sim.Trn_RevOTB / df_sim.Trn_RoomsOTB, 2)
-    except:
-        pass
-    try:
-        df_sim["TrnP_ADR_OTB"] = round(df_sim.TrnP_RevOTB / df_sim.TrnP_RoomsOTB, 2)
-    except:
-        pass
-    try:
-        df_sim["Grp_ADR_OTB"] = round(df_sim.Grp_RevOTB / df_sim.Grp_RoomsOTB, 2)
-    except:
-        pass
-    try:
-        df_sim["Cnt_ADR_OTB"] = round(df_sim.Cnt_RevOTB / df_sim.Cnt_RoomsOTB, 2)
-    except:
-        pass
+    seg_codes = ["TRN", "TRNP", "GRP", "CNT"]
+    for code in seg_codes:
+        if df_sim[code + "_RoomsOTB"].sum() > 0:
+            df_sim[code + "_ADR_OTB"] = round(df_sim[code '_RevOTB'] / df_sim[code + "_RoomsOTB"], 2)
 
     def apply_ly_cols(row):
         stly_date = row["STLY_Date"]
@@ -257,6 +241,7 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
 
         night_tm_stats.append(len(tminus_otb))  # add total OTB
         night_tm_stats.append(round(np.mean(tminus_otb.ADR), 2))  # add total ADR
+        night_tm_stats.append(round(np.sum(tminus_otb.ADR), 2))  # add total Rev
 
         mkt_segs = ["Transient", "Transient-Party", "Group", "Contract"]
         for seg in mkt_segs:
@@ -265,28 +250,41 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
             night_tm_stats.append(
                 round(np.mean(tminus_otb[mask].ADR), 2)
             )  # add segment ADR
+            # MUST ADD TM REV TO night_tm_stats IN UTILS.PY (IN ORDER) BEFORE UN-COMMENTING THESE OUT
+            night_tm_stats.append(
+                round(np.sum(tminus_otb[mask].ADR), 2)
+            )  # add segment Rev
 
         return tuple(night_tm_stats)
 
-    t30_col_names = ["TM30_" + col for col in tm_cols]
-    t15_col_names = ["TM15_" + col for col in tm_cols]
-    t05_col_names = ["TM05_" + col for col in tm_cols]
-    # print("Pulling t-5, t-15, t-30 booking stats...")
-    df_sim[t05_col_names] = df_sim.apply(
-        lambda row: apply_tminus_stats(row, "TM05_Date"),
-        result_type="expand",
-        axis="columns",
-    )
-    df_sim[t15_col_names] = df_sim.apply(
-        lambda row: apply_tminus_stats(row, "TM15_Date"),
-        result_type="expand",
-        axis="columns",
-    )
-    df_sim[t30_col_names] = df_sim.apply(
-        lambda row: apply_tminus_stats(row, "TM30_Date"),
-        result_type="expand",
-        axis="columns",
-    )
+    tms = ["TM30", "TM15", "TM05"]
+    for tm in tms:
+        tm_col_names = [tm + "_" + col for col in tm_cols]
+        df_sim[tm_col_names] = df_sim.apply(
+            lambda row: apply_tminus_stats(row, tm + "_Date"),
+            result_type="expand",
+            axis="columns",
+        )
+
+    tms = ["TM30", "TM15", "TM05"]
+    segs = ["TRN", "TRNP", "GRP", "CNT"]
+    # print(df_sim.columns)
+    for tm in tms:
+        # add total hotel stats first
+        df_sim[tm + "_RoomsPickup"] = df_sim["RoomsOTB"] - df_sim[tm + "_RoomsOTB"]
+        df_sim[tm + "_RoomsPickup"] = df_sim["ADR_OTB"] - df_sim[tm + "_ADR_OTB"]
+        df_sim[tm + "_RevPickup"] = df_sim["RevOTB"] - df_sim[tm + "_RevOTB"]
+        for seg in segs:
+            # and now segmented stats
+            df_sim[tm + "_" + seg + "_RoomsPickup"] = (
+                df_sim[seg + "_RoomsOTB"] - df_sim[tm + "_" + seg + "_RoomsOTB"]
+            )
+            df_sim[tm + "_" + seg + "_RatePickup"] = (
+                df_sim[seg + "_ADR_OTB"] - df_sim[tm + "_" + seg + "_ADR_OTB"]
+            )
+            df_sim[tm + "_" + seg + "_RevPickup"] = (
+                df_sim[seg + "_RevOTB"] - df_sim[tm + "_" + seg + "_RevOTB"]
+            )
     return df_sim.fillna(0)
 
 
@@ -343,6 +341,18 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbo
     df_sim[new_col_names] = df_sim.apply(
         apply_STLY_stats, result_type="expand", axis="columns"
     )
+    # quick way to add ADR columns
+    stly_segs = [
+        ("STLY_RoomsOTB", "STLY_ADR_OTB", "All_"),
+        ("STLY_TRN_RoomsOTB", "STLY_TRN_ADR_OTB", "TRN_"),
+        ("STLY_TRNP_RoomsOTB", "STLY_TRNP_ADR_OTB", "TRNP_"),
+        ("STLY_GRP_RoomsOTB", "STLY_GRP_ADR_OTB", "GRP_"),
+        ("STLY_CNT_RoomsOTB", "STLY_CNT_ADR_OTB", "CNT_"),
+    ]
+
+    for Rooms, adr, name in stly_segs:
+        df_sim["STLY_" + name + "Rev"] = df_sim[Rooms] * df_sim[adr]
+
     if verbose > 0:
         print("\nSTLY statistics obtained.\n")
     return df_sim
