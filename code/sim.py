@@ -13,7 +13,7 @@ import datetime
 import pandas as pd
 import numpy as np
 from dateutil.relativedelta import relativedelta
-from utils import stly_cols
+from utils import stly_cols, ly_cols, tm_cols
 from model_cancellations import get_otb_res, predict_cancellations
 
 H1_CAPACITY = 187
@@ -182,17 +182,13 @@ def add_sim_cols(df_sim, df_dbd, capacity, include_lya=True):
     def apply_ly_cols(row):
         stly_date = row["STLY_Date"]
         stly_date_str = datetime.datetime.strftime(stly_date, format=DATE_FMT)
-        df_lya = list(
-            df_dbd.loc[
-                stly_date_str, ["RoomsSold", "ADR", "RoomRev", "RevPAR", "NumCancels"]
-            ]
-        )
+
+        df_lya = list(df_dbd.loc[stly_date_str, ly_cols])
         return tuple(df_lya)
 
     if include_lya:
-        df_sim[
-            ["LYA_RoomsSold", "LYA_ADR", "LYA_RoomRev", "LYA_RevPAR", "LYA_NumCancels"]
-        ] = df_sim.apply(apply_ly_cols, axis=1, result_type="expand")
+        ly_new_cols = ["LYA_" + col for col in ly_cols]
+        df_sim[ly_new_cols] = df_sim.apply(apply_ly_cols, axis=1, result_type="expand")
 
     df_sim.fillna(0, inplace=True)
     return df_sim
@@ -258,51 +254,21 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
             tminus_otb["CheckoutDate"] > night_ds
         )
         tminus_otb = tminus_otb[mask].copy()
+        night_tm_stats = []
 
-        TM_OTB = len(tminus_otb)
-        TM_ADR = round(np.mean(tminus_otb.ADR), 2)
+        night_tm_stats.append(len(tminus_otb))  # add total OTB
+        night_tm_stats.append(round(np.mean(tminus_otb.ADR), 2))  # add total ADR
 
-        mask = tminus_otb.CustomerType == "Transient"
-        TM_TRN_OTB = len(tminus_otb[mask])
-        TM_TRN_ADR = round(np.mean(tminus_otb[mask].ADR), 2)
+        mkt_segs = ["Transient", "Transient-Party", "Group", "Contract"]
+        for seg in mkt_segs:
+            mask = tminus_otb.CustomerType == seg
+            night_tm_stats.append(len(tminus_otb[mask]))  # add segment OTB
+            night_tm_stats.append(
+                round(np.mean(tminus_otb[mask].ADR), 2)
+            )  # add segment ADR
 
-        mask = tminus_otb.CustomerType == "Transient-Party"
-        TM_TRNP_OTB = len(tminus_otb[mask])
-        TM_TRNP_ADR = round(np.mean(tminus_otb[mask].ADR), 2)
+        return tuple(night_tm_stats)
 
-        mask = tminus_otb.CustomerType == "Group"
-        TM_GRP_OTB = len(tminus_otb[mask])
-        TM_GRP_ADR = round(np.mean(tminus_otb[mask].ADR), 2)
-
-        mask = tminus_otb.CustomerType == "Contract"
-        TM_CNT_OTB = len(tminus_otb[mask])
-        TM_CNT_ADR = round(np.mean(tminus_otb[mask].ADR), 2)
-
-        return (
-            TM_OTB,
-            TM_ADR,
-            TM_TRN_OTB,
-            TM_TRN_ADR,
-            TM_TRNP_OTB,
-            TM_TRNP_ADR,
-            TM_GRP_OTB,
-            TM_GRP_ADR,
-            TM_CNT_OTB,
-            TM_CNT_ADR,
-        )
-
-    tm_cols = [
-        "RoomsOTB",
-        "ADR",
-        "TRN_OTB",
-        "TRN_ADR",
-        "TRNP_OTB",
-        "TRNP_ADR",
-        "GRP_OTB",
-        "GRP_ADR",
-        "CNT_OTB",
-        "CNT_ADR",
-    ]
     t30_col_names = ["TM30_" + col for col in tm_cols]
     t15_col_names = ["TM15_" + col for col in tm_cols]
     t05_col_names = ["TM05_" + col for col in tm_cols]
