@@ -30,12 +30,15 @@ For this to work, I had to choose a cutoff date that separated training data fro
 
 **For the purpose of this project, we assume that today is August 1, 2017, and the user is a Revenue Manager responsible for managing available room inventory (how many rooms are selling online for each future arrival date), and the selling price of the rooms on each night for the remainder of August.**
 
-This allows our model one year of training data (July 2016 - Jul 2017). What happened to the year before that? Well, **pace** data is important for hotels. **Pace** is how many rooms are on the books (OTB) for a future date, compared to how many rooms we had OTB same-time-last-year (STLY) for the same date (adjusted for day of week). I assumed this was important to have, so I could train the model to 'understand,' if you will, whether certain spikes in demand recur annually, or was a one-off occurrence (i.e. an annual holiday parade, or a FIFA World Cup soccer game). If there's no unusual spike in demand, pace can be a good indicator of a necessary price adjustment.
+This allows our model one year of training data (July 2016 - Jul 2017). What happened to the year before that? Well, **pace** data is important for hotels. **Pace** is how many rooms are on the books (OTB) for a future date, compared to how many rooms we had OTB same-time-last-year (STLY) for the same date (adjusted for day of week). 
 
 Due to the nature of the dataset I'm working with, and the fact that all reservations are all historical (2015-2017), there are several key features that I won't be able to include in my models:
 * Pricing information
   * We have average daily rate (ADR) for rooms sold, but not historical selling prices.
+* 'Walked' guest coding
+  * We don't know if the hotels walked any guests in our time frame. If they did, we don't know if these were coded as a cancellation or no-show.
 * Competitor pricing (from shops)
+  * In practice, with a market-driven pricing model, I would measure our hotel's change in demand in relation to competitor pricing changes, and make rate recommendations based largely off that. Since we don't have this data, we don't know the price threshold (if any) that will price us out of the market. 
 * Reservation changes
   * Each reservation in the dataset represents the reservation's snapshot at the latest stage (for example, at the time of cancellation, or checkout).
   * If a reservation is shortened during check-in, it should register as a cancellation for the nights reduced (that's not the case here)
