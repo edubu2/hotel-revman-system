@@ -188,18 +188,20 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
             .rename(columns={"ResNum": "RS", "ADR": "Rev"})
         )
 
-        if "Transient" in list(df_night.index):
-            day_stats["TRN_RoomsSold"] += df_night.loc["Transient", "RS"]
-            day_stats["TRN_RoomRev"] += df_night.loc["Transient", "Rev"]
-        if "Transient-Party" in list(df_night.index):
-            day_stats["TRNP_RoomsSold"] += df_night.loc["Transient-Party", "RS"]
-            day_stats["TRNP_RoomRev"] += df_night.loc["Transient-Party", "Rev"]
-        if "Group" in list(df_night.index):
-            day_stats["GRP_RoomsSold"] += df_night.loc["Group", "RS"]
-            day_stats["GRP_RoomRev"] += df_night.loc["Group", "Rev"]
-        if "Contract" in list(df_night.index):
-            day_stats["CNT_RoomsSold"] += df_night.loc["Contract", "RS"]
-            day_stats["CNT_RoomRev"] += df_night.loc["Contract", "Rev"]
+        seg_codes = [
+            ("Transient", "TRN"),
+            ("Transient-Party", "TRNP"),
+            ("Group", "GRP"),
+            ("Contract", "CNT"),
+        ]
+
+        for seg, code in seg_codes:
+            if seg in list(df_night.index):
+                day_stats[code + "RoomsSold"] += df_night.loc[seg, "RS"]
+                day_stats[code + "RoomRev"] += df_night.loc[seg, "Rev"]
+            else:
+                day_stats[code + "RoomsSold"] += 0
+                day_stats[code + "RoomRev"] += 0
 
         nightly_stats[date_string] = dict(day_stats)
         date += delta
