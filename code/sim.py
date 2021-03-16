@@ -164,6 +164,8 @@ def add_sim_cols(df_sim, df_dbd, capacity):
             df_sim[code + "_ADR_OTB"] = round(
                 df_sim[code + "_RevOTB"] / df_sim[code + "_RoomsOTB"], 2
             )
+        else:
+            df_sim[code + "_ADR_OTB"] = 0
 
     def apply_ly_cols(row):
         stly_date = row["STLY_Date"]
@@ -274,14 +276,14 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
     for tm in tms:
         # add total hotel stats first
         df_sim[tm + "_RoomsPickup"] = df_sim["RoomsOTB"] - df_sim[tm + "_RoomsOTB"]
-        df_sim[tm + "_RoomsPickup"] = df_sim["ADR_OTB"] - df_sim[tm + "_ADR_OTB"]
+        df_sim[tm + "_ADR_Pickup"] = df_sim["ADR_OTB"] - df_sim[tm + "_ADR_OTB"]
         df_sim[tm + "_RevPickup"] = df_sim["RevOTB"] - df_sim[tm + "_RevOTB"]
         for seg in segs:
             # and now segmented stats
             df_sim[tm + "_" + seg + "_RoomsPickup"] = (
                 df_sim[seg + "_RoomsOTB"] - df_sim[tm + "_" + seg + "_RoomsOTB"]
             )
-            df_sim[tm + "_" + seg + "_RatePickup"] = (
+            df_sim[tm + "_" + seg + "_ADR_Pickup"] = (
                 df_sim[seg + "_ADR_OTB"] - df_sim[tm + "_" + seg + "_ADR_OTB"]
             )
             df_sim[tm + "_" + seg + "_RevPickup"] = (
@@ -345,7 +347,7 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbo
     )
     # quick way to add ADR columns
     stly_segs = [
-        ("STLY_RoomsOTB", "STLY_ADR_OTB", "All_"),
+        ("STLY_RoomsOTB", "STLY_ADR_OTB", ""),
         ("STLY_TRN_RoomsOTB", "STLY_TRN_ADR_OTB", "TRN_"),
         ("STLY_TRNP_RoomsOTB", "STLY_TRNP_ADR_OTB", "TRNP_"),
         ("STLY_GRP_RoomsOTB", "STLY_GRP_ADR_OTB", "GRP_"),
@@ -353,7 +355,7 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbo
     ]
 
     for Rooms, adr, name in stly_segs:
-        df_sim["STLY_" + name + "Rev"] = df_sim[Rooms] * df_sim[adr]
+        df_sim["STLY_" + name + "RoomRev"] = df_sim[Rooms] * df_sim[adr]
 
     if verbose > 0:
         print("\nSTLY statistics obtained.\n")
