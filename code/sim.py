@@ -161,7 +161,9 @@ def add_sim_cols(df_sim, df_dbd, capacity):
     seg_codes = ["TRN", "TRNP", "GRP", "CNT"]
     for code in seg_codes:
         if df_sim[code + "_RoomsOTB"].sum() > 0:
-            df_sim[code + "_ADR_OTB"] = round(df_sim[code '_RevOTB'] / df_sim[code + "_RoomsOTB"], 2)
+            df_sim[code + "_ADR_OTB"] = round(
+                df_sim[code + "_RevOTB"] / df_sim[code + "_RoomsOTB"], 2
+            )
 
     def apply_ly_cols(row):
         stly_date = row["STLY_Date"]
