@@ -1,6 +1,9 @@
 """
 This script generates over 700 .csv files containing on the books data 
 as of each date from 2016-07-01 to 2017-08-31 for both H1 and H2.
+
+Execute from the command line, like so:
+    > python3 save_sims.py
 """
 
 from collections import defaultdict
@@ -28,8 +31,6 @@ def save_sim_records(df_dbd, df_res, hotel_num, skip_existing=False):
     folder = "./sims/"
     counter = 0
     for as_of_date in all_dates:
-        if counter % 100 == 0:
-            time.sleep(2)  # save CPU
         out_file = str(folder + f"h{str(hotel_num)}_sim_{as_of_date}.csv")
         df_sim = generate_simulation(
             df_dbd,
@@ -40,7 +41,7 @@ def save_sim_records(df_dbd, df_res, hotel_num, skip_existing=False):
             pull_stly=False,
             verbose=0,
         )
-        df_sim.rename(columns={"Unnamed: 0": "Date"}, inplace=True, errors="ignore")
+        df_sim.drop(columns=["Unnamed: 0"], inplace=True, errors="ignore")
 
         df_sim.to_csv(out_file)
         counter += 1
