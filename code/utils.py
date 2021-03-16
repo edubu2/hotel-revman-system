@@ -60,6 +60,24 @@ stly_cols = [  # each must exist in all csv file column names
     "TM30_CNT_RoomsOTB",
     "TM30_CNT_ADR_OTB",
     "TM30_CNT_RevOTB",
+    "TM30_RoomsPickup",
+    "TM30_ADR_Pickup",
+    "TM30_RevPickup",
+    "TM15_RoomsPickup",
+    "TM15_ADR_Pickup",
+    "TM15_RevPickup",
+    "TM05_RoomsPickup",
+    "TM05_ADR_Pickup",
+    "TM05_RevPickup",
+    "TM30_TRN_RoomsPickup",
+    "TM30_TRN_ADR_Pickup",
+    "TM30_TRN_RevPickup",
+    "TM15_TRN_RoomsPickup",
+    "TM15_TRN_ADR_Pickup",
+    "TM15_TRN_RevPickup",
+    "TM05_TRN_RoomsPickup",
+    "TM05_TRN_ADR_Pickup",
+    "TM05_TRN_RevPickup",
 ]
 
 ly_cols = [  # must match df_dbd col names
@@ -100,3 +118,41 @@ tm_cols = [  # new col names (prefixes will be added)
     "CNT_ADR_OTB",
     "CNT_RevOTB",
 ]
+
+ty_pace_cols = [
+    "RoomsOTB",
+    "ADR_OTB",
+    "RevOTB",
+    "TRN_RoomsOTB",
+    "TRN_ADR_OTB",
+    "TRN_RevOTB",
+    "TM30_RoomsPickup",
+    "TM30_ADR_Pickup",
+    "TM30_RevPickup",
+    "TM15_RoomsPickup",
+    "TM15_ADR_Pickup",
+    "TM15_RevPickup",
+    "TM05_RoomsPickup",
+    "TM05_ADR_Pickup",
+    "TM05_RevPickup",
+    "TM30_TRN_RoomsPickup",
+    "TM30_TRN_ADR_Pickup",
+    "TM30_TRN_RevPickup",
+    "TM15_TRN_RoomsPickup",
+    "TM15_TRN_ADR_Pickup",
+    "TM15_TRN_RevPickup",
+    "TM05_TRN_RoomsPickup",
+    "TM05_TRN_ADR_Pickup",
+    "TM05_TRN_RevPickup",
+]
+
+stly_pace_cols = ["STLY_" + col for col in ty_pace_cols]
+
+
+def merge(list1, list2):
+    """Merges two lists into a list of tuples. Must be same length."""
+    merged_list = [(list1[i], list2[i]) for i in range(0, len(list1))]
+    return merged_list
+
+
+pace_tuples = merge(ty_pace_cols, stly_pace_cols)

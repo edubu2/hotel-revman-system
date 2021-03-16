@@ -13,7 +13,7 @@ import datetime
 import pandas as pd
 import numpy as np
 from dateutil.relativedelta import relativedelta
-from utils import stly_cols, ly_cols, tm_cols
+from utils import stly_cols, ly_cols, tm_cols, pace_tuples
 from model_cancellations import get_otb_res, predict_cancellations
 
 H1_CAPACITY = 187
@@ -144,6 +144,8 @@ def add_sim_cols(df_sim, df_dbd, capacity):
         - 'WE' (weekend - binary)
         - 'STLY_Date' (datetime DATE_FMT)
         - 'LYA_' cols (last year actual RoomsSold, ADR, Rev, CXL'd)
+        - 'GapToLYA_' cols
+        - 'Actual_' cols
     _____
     Parameters:
         - df_sim: day-by-day hotel DF
@@ -178,6 +180,23 @@ def add_sim_cols(df_sim, df_dbd, capacity):
     df_sim[ly_new_cols] = df_sim.apply(apply_ly_cols, axis=1, result_type="expand")
 
     df_sim.fillna(0, inplace=True)
+
+    # add gap to LYA column
+    df_sim["RoomsGapToLYA"] = df_sim.LYA_RoomsSold - df_sim.RoomsOTB
+    df_sim["ADR_GapToLYA"] = df_sim.LYA_ADR - df_sim.ADR_OTB
+
+    actual_cols = [
+        "RoomsSold",
+        "ADR",
+        "RoomRev",
+        "TRN_RoomsSold",
+        "TRN_ADR",
+        "TRN_RoomRev",
+    ]
+
+    for col in actual_cols:
+        df_sim["Actual_" + col] = df_dbd[col]
+
     return df_sim
 
 
@@ -275,19 +294,23 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
     # print(df_sim.columns)
     for tm in tms:
         # add total hotel stats first
-        df_sim[tm + "_RoomsPickup"] = df_sim["RoomsOTB"] - df_sim[tm + "_RoomsOTB"]
-        df_sim[tm + "_ADR_Pickup"] = df_sim["ADR_OTB"] - df_sim[tm + "_ADR_OTB"]
-        df_sim[tm + "_RevPickup"] = df_sim["RevOTB"] - df_sim[tm + "_RevOTB"]
+        df_sim[tm + "_RoomsPickup"] = round(
+            df_sim["RoomsOTB"] - df_sim[tm + "_RoomsOTB"], 2
+        )
+        df_sim[tm + "_ADR_Pickup"] = round(
+            df_sim["ADR_OTB"] - df_sim[tm + "_ADR_OTB"], 2
+        )
+        df_sim[tm + "_RevPickup"] = round(df_sim["RevOTB"] - df_sim[tm + "_RevOTB"], 2)
         for seg in segs:
             # and now segmented stats
-            df_sim[tm + "_" + seg + "_RoomsPickup"] = (
-                df_sim[seg + "_RoomsOTB"] - df_sim[tm + "_" + seg + "_RoomsOTB"]
+            df_sim[tm + "_" + seg + "_RoomsPickup"] = round(
+                df_sim[seg + "_RoomsOTB"] - df_sim[tm + "_" + seg + "_RoomsOTB"], 2
             )
-            df_sim[tm + "_" + seg + "_ADR_Pickup"] = (
-                df_sim[seg + "_ADR_OTB"] - df_sim[tm + "_" + seg + "_ADR_OTB"]
+            df_sim[tm + "_" + seg + "_ADR_Pickup"] = round(
+                df_sim[seg + "_ADR_OTB"] - df_sim[tm + "_" + seg + "_ADR_OTB"], 2
             )
-            df_sim[tm + "_" + seg + "_RevPickup"] = (
-                df_sim[seg + "_RevOTB"] - df_sim[tm + "_" + seg + "_RevOTB"]
+            df_sim[tm + "_" + seg + "_RevPickup"] = round(
+                df_sim[seg + "_RevOTB"] - df_sim[tm + "_" + seg + "_RevOTB"], 2
             )
     return df_sim.fillna(0)
 
@@ -362,6 +385,19 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbo
     return df_sim
 
 
+def add_pace_cols(df_sim):
+    """
+    Adds pace & pickup pace columns to df_sim.
+
+    Uses lists generated in utils.py.
+    """
+
+    for ty, stly in pace_tuples:
+        df_sim[ty + "_Pace"] = df_sim[ty] - df_sim[stly]
+
+    return df_sim
+
+
 def generate_simulation(
     df_dbd,
     as_of_date,
@@ -432,6 +468,7 @@ def generate_simulation(
         df_sim = add_stly_cols(
             df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbose=verbose
         )
+        df_sim = add_pace_cols(df_sim)
 
     if verbose > 0:
         print(f"\nSimulation setup complete. As of date: {as_of_date}\n")
