@@ -197,11 +197,11 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
 
         for seg, code in seg_codes:
             if seg in list(df_night.index):
-                day_stats[code + "RoomsSold"] += df_night.loc[seg, "RS"]
-                day_stats[code + "RoomRev"] += df_night.loc[seg, "Rev"]
+                day_stats[code + "_RoomsSold"] += df_night.loc[seg, "RS"]
+                day_stats[code + "_RoomRev"] += df_night.loc[seg, "Rev"]
             else:
-                day_stats[code + "RoomsSold"] += 0
-                day_stats[code + "RoomRev"] += 0
+                day_stats[code + "_RoomsSold"] += 0
+                day_stats[code + "_RoomRev"] += 0
 
         nightly_stats[date_string] = dict(day_stats)
         date += delta
