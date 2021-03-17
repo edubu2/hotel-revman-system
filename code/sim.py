@@ -132,7 +132,7 @@ def aggregate_reservations(night_df, date_string):
     return date_stats
 
 
-def add_sim_cols(df_sim, df_dbd, capacity):
+def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
     """
     Adds several columns to df_sim, including:
         - 'Occ' (occupancy)
@@ -148,8 +148,11 @@ def add_sim_cols(df_sim, df_dbd, capacity):
         - 'Actual_' cols
     _____
     Parameters:
-        - df_sim: day-by-day hotel DF
+        - df_sim
+        - df_dbd
         - capacity (int, required): number of rooms in the hotel
+        - pull_lya (set to False when using save_sims.py)
+
     """
     # add Occ/RevPAR/RemSupply columns'
     df_sim["Occ"] = round(df_sim["RoomsOTB"].astype("int") / int(capacity), 2)
@@ -160,6 +163,7 @@ def add_sim_cols(df_sim, df_dbd, capacity):
     # to avoid errors, only operate on existing columns
     # Add ADR by segment
     df_sim["ADR_OTB"] = round(df_sim.RevOTB / df_sim.RoomsOTB, 2)
+
     seg_codes = ["TRN", "TRNP", "GRP", "CNT"]
     for code in seg_codes:
         if df_sim[code + "_RoomsOTB"].sum() > 0:
@@ -168,22 +172,23 @@ def add_sim_cols(df_sim, df_dbd, capacity):
             )
         else:
             df_sim[code + "_ADR_OTB"] = 0
+    if pull_lya:
 
-    def apply_ly_cols(row):
-        stly_date = row["STLY_Date"]
-        stly_date_str = datetime.datetime.strftime(stly_date, format=DATE_FMT)
+        def apply_ly_cols(row):
+            stly_date = row["STLY_Date"]
+            stly_date_str = datetime.datetime.strftime(stly_date, format=DATE_FMT)
 
-        df_lya = list(df_dbd.loc[stly_date_str, ly_cols])
-        return tuple(df_lya)
+            df_lya = list(df_dbd.loc[stly_date_str, ly_cols])
+            return tuple(df_lya)
 
-    ly_new_cols = ["LYA_" + col for col in ly_cols]
-    df_sim[ly_new_cols] = df_sim.apply(apply_ly_cols, axis=1, result_type="expand")
+        ly_new_cols = ["LYA_" + col for col in ly_cols]
+        df_sim[ly_new_cols] = df_sim.apply(apply_ly_cols, axis=1, result_type="expand")
 
-    df_sim.fillna(0, inplace=True)
+        df_sim.fillna(0, inplace=True)
 
-    # add gap to LYA column
-    df_sim["RoomsGapToLYA"] = df_sim.LYA_RoomsSold - df_sim.RoomsOTB
-    df_sim["ADR_GapToLYA"] = df_sim.LYA_ADR - df_sim.ADR_OTB
+        # add gap to LYA column
+        df_sim["RoomsGapToLYA"] = df_sim.LYA_RoomsSold - df_sim.RoomsOTB
+        df_sim["ADR_GapToLYA"] = df_sim.LYA_ADR - df_sim.ADR_OTB
 
     actual_cols = [
         "RoomsSold",
@@ -406,6 +411,7 @@ def generate_simulation(
     confusion=True,
     pull_stly=True,
     verbose=1,
+    pull_lya=True,
 ):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
@@ -451,7 +457,7 @@ def generate_simulation(
         df_res,
         as_of_date,
     )
-    df_sim = add_sim_cols(df_sim, df_dbd, capacity)
+    df_sim = add_sim_cols(df_sim, df_dbd, capacity, pull_lya=pull_lya)
     df_sim = add_cxl_cols(df_sim, df_res, as_of_date)
 
     if verbose > 0:

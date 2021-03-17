@@ -21,8 +21,8 @@ H2_DBD = pd.read_pickle("pickle/h2_dbd.pick")
 
 
 def save_sim_records(df_dbd, df_res, hotel_num, skip_existing=False):
-    start = datetime.date(2016, 7, 1)
-    stop = datetime.date(2017, 8, 31)
+    start = datetime.date(2016, 1, 1)
+    stop = datetime.date(2016, 6, 30)
     all_dates = [
         datetime.datetime.strftime(start + datetime.timedelta(days=x), format=DATE_FMT)
         for x in range((stop - start).days + 1)
@@ -40,6 +40,7 @@ def save_sim_records(df_dbd, df_res, hotel_num, skip_existing=False):
             confusion=False,
             pull_stly=False,
             verbose=0,
+            pull_lya=False,
         )
         df_sim.drop(columns=["Unnamed: 0"], inplace=True, errors="ignore")
 
