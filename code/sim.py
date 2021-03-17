@@ -22,7 +22,7 @@ DATE_FMT = "%Y-%m-%d"
 SIM_CSV_FP = "./sims/h{}_sim_{}.csv"
 
 
-def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
+def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
     """
     Takes reservations and returns a DataFrame that can be used
     as a revenue management simulation.
@@ -55,7 +55,7 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
         stay_date_str = datetime.datetime.strftime(date, format=DATE_FMT)
         # initialize date dict, which will go into nightly_stats as:
         # {'date': {'stat': 'val', 'stat', 'val'}}
-        night_df = get_otb_res(df_res, stay_date_str)
+        night_df = get_otb_res(df_res, as_of_date)
 
         mask = (night_df.ArrivalDate <= stay_date_str) & (
             night_df.CheckoutDate > stay_date_str
@@ -91,7 +91,7 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01"):
 
     df_sim["STLY_Date"] = pd.to_datetime(df_sim.index.map(stly_lambda), format=DATE_FMT)
 
-    return df_sim
+    return df_sim.copy()
 
 
 def aggregate_reservations(night_df, date_string):
@@ -202,7 +202,7 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
     for col in actual_cols:
         df_sim["Actual_" + col] = df_dbd[col]
 
-    return df_sim
+    return df_sim.copy()
 
 
 def add_cxl_cols(df_sim, df_res, as_of_date):
@@ -221,7 +221,7 @@ def add_cxl_cols(df_sim, df_res, as_of_date):
         return len(df_cxl_res)
 
     df_sim["Realized_Cxls"] = df_sim["Date"].map(cxl_mapper)
-    return df_sim
+    return df_sim.copy()
 
 
 def add_pricing(df_sim, df_res):
@@ -247,7 +247,7 @@ def add_pricing(df_sim, df_res):
 
     df_sim["SellingPrice"] = df_sim["Date"].map(rate_mapper)
 
-    return df_sim
+    return df_sim.copy()
 
 
 def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
@@ -317,7 +317,7 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
             df_sim[tm + "_" + seg + "_RevPickup"] = round(
                 df_sim[seg + "_RevOTB"] - df_sim[tm + "_" + seg + "_RevOTB"], 2
             )
-    return df_sim.fillna(0)
+    return df_sim.copy().fillna(0)
 
 
 def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbose=1):
@@ -340,10 +340,10 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbo
             years=-1, weekday=pd.to_datetime(as_of_date).weekday()
         )
         stly_date_str = datetime.datetime.strftime(stly_date, format=DATE_FMT)
-        if verbose > 0:
-            print(
-                f"Pulling stats from STLY date {stly_date_str}, stay_date {stay_date_str}..."
-            )
+        # if verbose > 0:
+        #     print(
+        #         f"Pulling stats from STLY date {stly_date_str}, stay_date {stay_date_str}..."
+        #     )
 
         stly_sim = pd.read_csv(
             SIM_CSV_FP.format(str(hotel_num), stly_date_str),
@@ -387,7 +387,7 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbo
 
     if verbose > 0:
         print("\nSTLY statistics obtained.\n")
-    return df_sim
+    return df_sim.copy()
 
 
 def add_pace_cols(df_sim):
@@ -400,7 +400,7 @@ def add_pace_cols(df_sim):
     for ty, stly in pace_tuples:
         df_sim[ty + "_Pace"] = df_sim[ty] - df_sim[stly]
 
-    return df_sim
+    return df_sim.copy()
 
 
 def generate_simulation(
@@ -479,4 +479,4 @@ def generate_simulation(
     if verbose > 0:
         print(f"\nSimulation setup complete. As of date: {as_of_date}\n")
 
-    return df_sim
+    return df_sim.copy()

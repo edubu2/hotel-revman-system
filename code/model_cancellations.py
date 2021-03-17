@@ -26,16 +26,10 @@ def get_otb_res(df_res, as_of_date):
             - e.g. "2017-08-15"
     """
     aod = pd.to_datetime(as_of_date)
-    if aod + pd.DateOffset(31) > datetime.date(2017, 8, 31):
-        end_date = datetime.date(2017, 8, 31)
-    else:
-        end_date = aod + pd.DateOffset(31)
-    end_date_str = datetime.datetime.strftime(end_date, format=DATE_FMT)
 
     otb_mask = (
         (df_res.ResMadeDate <= as_of_date)  # reservations made before AOD
         & (df_res.CheckoutDate > as_of_date)  # checking out after AOD
-        & (df_res.ArrivalDate <= end_date_str)
     ) & (
         (df_res.IsCanceled == 0)
         | (
@@ -45,7 +39,7 @@ def get_otb_res(df_res, as_of_date):
         )
     )
 
-    return df_res[otb_mask]
+    return df_res[otb_mask].copy()
 
 
 def split_reservations(df_res, as_of_date, features, verbose=1):
@@ -67,11 +61,9 @@ def split_reservations(df_res, as_of_date, features, verbose=1):
     # test: all OTB reservations
     train_mask = df_res["CheckoutDate"] <= as_of_date
     df_train = df_res[train_mask]
-    test_mask = (
-        (df_res.ResMadeDate <= as_of_date)  # reservations made before AOD
-        # & (df_res.ArrivalDate <= stay_date)  # arriving before/on AOD
-        & (df_res.CheckoutDate > as_of_date)  # checking out after AOD
-    )
+    test_mask = (df_res.ResMadeDate <= as_of_date) & (  # reservations made before AOD
+        df_res.CheckoutDate > as_of_date
+    )  # checking out after AOD
     df_test = df_res[test_mask]
 
     X_train = df_train[features].copy()
@@ -175,4 +167,4 @@ def predict_cancellations(df_res, as_of_date, hotel_num, confusion=True, verbose
     # df_otb["will_cancel"] = df_otb.cxl_proba >= thresh
     # df_otb["IsCanceled"] = y_test.to
     # return df_otb
-    return df_res
+    return df_res.copy()
