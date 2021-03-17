@@ -145,7 +145,7 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
         - 'STLY_Date' (datetime DATE_FMT)
         - 'LYA_' cols (last year actual RoomsSold, ADR, Rev, CXL'd)
         - 'GapToLYA_' cols
-        - 'Actual_' cols
+        - 'Actual_' cols (including pickup)
     _____
     Parameters:
         - df_sim
@@ -202,6 +202,14 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
     for col in actual_cols:
         df_sim["Actual_" + col] = df_dbd[col]
 
+    # add pickup cols
+    df_sim["Actual_RoomsPickup"] = df_sim.Actual_RoomsSold - df_sim.RoomsOTB
+    df_sim["Actual_ADR_Pickup"] = df_sim.Actual_ADR - df_sim.ADR_OTB
+    df_sim["Actual_RoomRevPickup"] = df_sim.Actual_RoomRev - df_sim.RevOTB
+
+    df_sim["Actual_TRN_RoomsPickup"] = df_sim.Actual_TRN_RoomsSold - df_sim.TRN_RoomsOTB
+    df_sim["Actual_TRN_ADR_Pickup"] = df_sim.Actual_TRN_ADR - df_sim.TRN_ADR_OTB
+    df_sim["Actual_TRN_RoomRevPickup"] = df_sim.Actual_TRN_RoomRev - df_sim.TRN_RevOTB
     return df_sim.copy()
 
 
