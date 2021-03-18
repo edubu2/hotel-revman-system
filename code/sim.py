@@ -190,7 +190,7 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
     # Add ADR by segment
     df_sim["ADR_OTB"] = round(df_sim.RevOTB / df_sim.RoomsOTB, 2)
 
-    seg_codes = ["TRN", "TRNP", "GRP", "CNT"]
+    seg_codes = ["TRN", "NONTRN", "TRNP", "GRP", "CNT"]
     # for code in seg_codes:
     #     if df_sim[code + "_RoomsOTB"].sum() > 0:
     #         df_sim[code + "_ADR_OTB"] = round(
@@ -338,7 +338,6 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
         columns=["TM30_Date", "TM15_Date", "TM05_Date"], inplace=True, errors="ignore"
     )
 
-    # print(df_sim.columns)
     # for tm in tms:
     #     # add total hotel stats first
     #     df_sim[tm + "_RoomsPickup"] = round(
