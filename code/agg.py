@@ -1,14 +1,15 @@
 """This script aggregates the data in ../data/otb-data/ folder
-that was generated from save_sims.py.
+that was generated from save_sims 1 & 2.
 
 It then adds in calculated statistics/features that will be used
 for modeling demand.
 """
 
 FOLDER = "../data/otb-data/"
+H1_FILEPATH = ".."
 
 
-def agg_res(hotel_num):
+def combine_files(hotel_num):
     """
     Combines all files in FOLDER into one DataFrame.
     """
