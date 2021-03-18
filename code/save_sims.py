@@ -36,7 +36,7 @@ import time
 # --- ADJUST THESE VARIABLES FROM STEP 1 - STEP 2 ---
 # --- SEE INSTRUCTIONS IN DOCSTRING ---
 FOLDER = "./sims/pickle"
-START = datetime.date(2016, 8, 24)
+START = datetime.date(2017, 3, 30)
 STOP = datetime.date(2017, 8, 1)
 PULL_EXTENDED = False  # set to True only for run 2 (see instructions in docstring)
 
