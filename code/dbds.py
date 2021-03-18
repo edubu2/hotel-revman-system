@@ -279,7 +279,23 @@ def add_dbd_columns(df_dbd, capacity):
     df_dbd.index = pd.to_datetime(df_dbd.index, format=DATE_FMT)
     df_dbd.fillna(0, inplace=True)
 
-    return df_dbd
+    return df_dbd.copy()
+
+
+def add_other_market_seg(df_dbd):
+    """
+    To simplify complexity, combine Grp, Trnp, Cnt cols into one 'NONTRN_'.
+    Takes and returns a modified df_sim.
+    """
+    df_dbd["NONTRN_RoomsSold"] = (
+        df_dbd.TRNP_RoomsSold + df_dbd.GRP_RoomsSold + df_dbd.CNT_RoomsSold
+    )
+    df_dbd["NONTRN_RoomRev"] = (
+        df_dbd.TRNP_RoomRev + df_dbd.GRP_RoomRev + df_dbd.CNT_RoomRev
+    )
+    df_dbd["NONTRN_ADR"] = round(df_dbd.NONTRN_RoomRev / df_dbd.NONTRN_RoomsSold, 2)
+
+    return df_dbd.copy()
 
 
 def generate_hotel_dfs(res_filepath, capacity=None):

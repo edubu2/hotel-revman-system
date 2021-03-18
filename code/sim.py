@@ -13,7 +13,7 @@ import datetime
 import pandas as pd
 import numpy as np
 from dateutil.relativedelta import relativedelta
-from utils import stly_cols, ly_cols, tm_cols, pace_tuples
+from sim_utils import stly_cols, ly_cols, tm_cols, pace_tuples
 from model_cancellations import get_otb_res, predict_cancellations
 
 H1_CAPACITY = 187
@@ -230,7 +230,9 @@ def add_other_market_seg(df_sim):
     df_sim["NONTRN_RoomRevOTB"] = (
         df_sim.TRNP_RevOTB + df_sim.GRP_RevOTB + df_sim.CNT_RevOTB
     )
-    df_sim["NONTRN_ADR_OTB"] = df_sim.NONTRN_RoomRevOTB / df_sim.NONTRN_RoomsOTB
+    df_sim["NONTRN_ADR_OTB"] = round(
+        df_sim.NONTRN_RoomRevOTB / df_sim.NONTRN_RoomsOTB, 2
+    )
 
     return df_sim.copy()
 
