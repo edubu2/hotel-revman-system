@@ -1,51 +1,24 @@
 """
-ON-THE-BOOKS DATA SERIALIZATION SCRIPTS - PART 1 OF 2
+This script generates over 700 .csv files containing on the books data 
+as of each date from 2017-07-01 to 2017-08-31 for both H1 and H2. generate_simulation
+will use the resulting files of save_sims_1.py when used with the parameters set forth
+below. 
 
-(REQUIRED TO REPRODUCE LOCALLY)
+This script also takes several hours, but upon completion our data will be easily
+accessible.
 
-INTRODUCTION
+It takes several hours for each run (very CPU intensive). I highly recommend using a 
+virtual machine. 
 -------
 
-The 'save_sims' ('_1' and '_2') scripts capture future-looking on the books (OTB)
-data as_of every date in our sample that has one year of history and serializes them for
-later ease of use using Pickle. This means the first year of data cannot be used
-directly in the output, but data from that year will be contained in the STLY (same-time-
-last-year) features of the save_sims_2 output. The scripts need to be run in order. I am
-currently experimenting with starting save_sims_2.py once save_sims_1.py is halfway done.
-I will update this when I can confirm it works. It will be extremely CPU intensive and
-should not be attempted on a personal computer (unless you have state of the art hardware).
-
-Hyperthreading should be enabled.
-
-This script generates nearly 1000 .csv files containing on the books data 
-as of each date from 2015-07-01 to 2017-08-31 for both H1 and H2. 
-
-The subsequent save_sims_2.py script will pull STLY data from 2017-08-01 to
-2018-08-01 (hence the need for OTB data from 2015-07-01 - 2016-08-31)
-
-INSTRUCTIONS
-------
-Upon completion, run save_sims_2.py. save_sims_2.py is nearly identical to this
-script, but passes different parameters into generate_simulation function with each
-iteration.
-
-It takes several hours for each script to run (very CPU intensive). Once the files are saved,
-the data can be accessed and manipulated very quickly.
-
-We need to do this in order to quickly pull STLY OTB data for future simulations.
--------
-
-Upon initial setup, after saving df_res and df_dbd to pickle files *, run this script
+Upon initial setup, after saving df_res and df_dbd to pickle files, run this script
 from your terminal.
 
-* df_res and df_sim are generated from the 'dbds.py' script. Replace 'df' with 'h<n>';
-replace '<n>' with the hotel number. 
-
 Ensure the global params are as follows: 
-FOLDER = "./sims/pickle/"
-START = datetime.date(2015, 8, 1)
+FOLDER = "../data/otb-data/"
+START = datetime.date(2016, 8, 1)
 STOP = datetime.date(2017, 8, 1)
-PULL_EXTENDED = False
+PULL_EXTENDED = True
         
 
 Execute from the command line, like so:
@@ -59,14 +32,10 @@ import datetime
 from sim import generate_simulation
 import time
 
-# --- ADJUST THESE VARIABLES FROM STEP 1 - STEP 2 ---
-# --- SEE INSTRUCTIONS IN DOCSTRING ---
-FOLDER = "./sims/pickle/"
-START = datetime.date(2015, 8, 1)
-STOP = datetime.date(2017, 8, 31)
-PULL_EXTENDED = False  # set to True only for run 2 (see instructions in docstring)
-
-# ---- STOP ----
+FOLDER = "../data/otb-data/"
+START = datetime.date(2016, 8, 1)
+STOP = datetime.date(2017, 8, 1)
+PULL_EXTENDED = True  
 
 DATE_FMT = "%Y-%m-%d"
 H1_RES = pd.read_pickle("pickle/h1_res.pick")

@@ -4,6 +4,14 @@ management simulation. The 'as_of_date' variable indicates
 'today' in simulation terms. We essentially rollback the
 reservations list back to the way they were on as_of_date.
 
+This code is optimized for efficiency, since it will be run
+hundreds of times in sim_utils.py with different as_of_dates 
+for each hotel. This will be the training data for my demand model.
+
+The generate_simulation function wraps all of the others. It can 
+be used in Jupyter notebooks and in other scripts by adjusting 
+the arguments. For certain purposes, not all functions are needed. 
+
 Then, we capture various time-based performance statistics
 and return a DataFrame (df_sim) that will be used to model demand.
 """
@@ -14,12 +22,12 @@ import pandas as pd
 import numpy as np
 from dateutil.relativedelta import relativedelta
 from sim_utils import stly_cols, ly_cols, tm_cols, pace_tuples
-from model_cancellations import get_otb_res, predict_cancellations
+from model_cancellations import get_otb_res, predict_cancellations, get_future_res
 
 H1_CAPACITY = 187
 H2_CAPACITY = 226
 DATE_FMT = "%Y-%m-%d"
-SIM_CSV_FP = "./sims/h{}_sim_{}.csv"
+SIM_PICKLE_FP = "./sims/pickleh{}_sim_{}.pick"
 
 
 def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
@@ -75,9 +83,6 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
     df_sim["TM15_Date"] = df_sim.Date - pd.DateOffset(15)
     df_sim["TM30_Date"] = df_sim.Date - pd.DateOffset(30)
     # have to do it this way to prevent performance warning (non-vectorized operation)
-    df_sim["WeekEndDate"] = df_sim.apply(
-        lambda x: x["Date"] + pd.DateOffset(weekday=6), axis=1
-    )
 
     dow = pd.to_datetime(df_sim.index, format=DATE_FMT)
     dow = dow.strftime("%a")
@@ -86,9 +91,9 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
     df_sim["WD"] = df_sim.WE is False
 
     # one-hot-encode DOW column
-    ohe_dow = pd.get_dummies(df_sim.DOW, drop_first=True)
-    dow_ohe_cols = list(ohe_dow.columns)
-    df_sim[dow_ohe_cols] = ohe_dow
+    # ohe_dow = pd.get_dummies(df_sim.DOW, drop_first=True)
+    # dow_ohe_cols = list(ohe_dow.columns)
+    # df_sim[dow_ohe_cols] = ohe_dow
 
     # add STLY date
     stly_lambda = lambda x: pd.to_datetime(x) + relativedelta(
@@ -97,7 +102,7 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
 
     df_sim["STLY_Date"] = pd.to_datetime(df_sim.index.map(stly_lambda), format=DATE_FMT)
 
-    df_sim["DaysUntilArrival"] = (df_sim.index - aod_dt).dt.days
+    df_sim["DaysUntilArrival"] = (df_sim.Date - aod_dt).dt.days
 
     return df_sim.copy()
 
@@ -148,12 +153,8 @@ def add_other_market_seg(df_sim):
     df_sim["NONTRN_RoomsOTB"] = (
         df_sim.TRNP_RoomsOTB + df_sim.GRP_RoomsOTB + df_sim.CNT_RoomsOTB
     )
-    df_sim["NONTRN_RoomRevOTB"] = (
-        df_sim.TRNP_RevOTB + df_sim.GRP_RevOTB + df_sim.CNT_RevOTB
-    )
-    df_sim["NONTRN_ADR_OTB"] = round(
-        df_sim.NONTRN_RoomRevOTB / df_sim.NONTRN_RoomsOTB, 2
-    )
+    df_sim["NONTRN_RevOTB"] = df_sim.TRNP_RevOTB + df_sim.GRP_RevOTB + df_sim.CNT_RevOTB
+    df_sim["NONTRN_ADR_OTB"] = round(df_sim.NONTRN_RevOTB / df_sim.NONTRN_RoomsOTB, 2)
 
     return df_sim.copy()
 
@@ -181,24 +182,22 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
         - pull_lya (set to False when using save_sims.py)
 
     """
-    # add Occ/RevPAR/RemSupply columns'
-    df_sim["Occ"] = round(df_sim["RoomsOTB"].astype("int") / int(capacity), 2)
-    df_sim["RevPAR"] = round(df_sim["RevOTB"] / capacity, 2)
-    df_sim["RemSupply"] = (
-        capacity - df_sim.RoomsOTB.astype(int) + df_sim.CxlForecast.astype(int)
-    )
+    # add RemSupply columns'
+    # df_sim["RemSupply"] = (
+    #     capacity - df_sim.RoomsOTB.astype(int) + df_sim.CxlForecast.astype(int)
+    # )
     # to avoid errors, only operate on existing columns
     # Add ADR by segment
     df_sim["ADR_OTB"] = round(df_sim.RevOTB / df_sim.RoomsOTB, 2)
 
-    seg_codes = ["TRN", "NONTRN", "TRNP", "GRP", "CNT"]
-    for code in seg_codes:
-        if df_sim[code + "_RoomsOTB"].sum() > 0:
-            df_sim[code + "_ADR_OTB"] = round(
-                df_sim[code + "_RevOTB"] / df_sim[code + "_RoomsOTB"], 2
-            )
-        else:
-            df_sim[code + "_ADR_OTB"] = 0
+    seg_codes = ["TRN", "TRNP", "GRP", "CNT"]
+    # for code in seg_codes:
+    #     if df_sim[code + "_RoomsOTB"].sum() > 0:
+    #         df_sim[code + "_ADR_OTB"] = round(
+    #             df_sim[code + "_RevOTB"] / df_sim[code + "_RoomsOTB"], 2
+    #         )
+    #     else:
+    #         df_sim[code + "_ADR_OTB"] = 0
     if pull_lya:
 
         def apply_ly_cols(row):
@@ -213,43 +212,34 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
 
         df_sim.fillna(0, inplace=True)
 
-        # add gap to LYA column
-        df_sim["RoomsGapToLYA"] = df_sim.LYA_RoomsSold - df_sim.RoomsOTB
-        df_sim["ADR_GapToLYA"] = df_sim.LYA_ADR - df_sim.ADR_OTB
+    #     # add gap to LYA column
+    #     df_sim["RoomsGapToLYA"] = df_sim.LYA_RoomsSold - df_sim.RoomsOTB
+    #     df_sim["ADR_GapToLYA"] = df_sim.LYA_ADR - df_sim.ADR_OTB
 
-    actual_cols = [
-        "RoomsSold",
-        "ADR",
-        "RoomRev",
-        "TRN_RoomsSold",
-        "TRN_ADR",
-        "TRN_RoomRev",
-        "NONTRN_RoomsSold",
-        "NONTRN_ADR",
-        "NONTRN_RoomRev",
-    ]
+    # actual_cols = [
+    #     "RoomsSold",
+    #     "ADR",
+    #     "RoomRev",
+    #     "TRN_RoomsSold",
+    #     "TRN_ADR",
+    #     "TRN_RoomRev",
+    #     "NONTRN_RoomsSold",
+    #     "NONTRN_ADR",
+    #     "NONTRN_RoomRev",
+    # ]
 
-    for col in actual_cols:
-        df_sim["Actual_" + col] = df_dbd[col]
+    # for col in actual_cols:
+    #     df_sim["Actual_" + col] = df_dbd[col]
 
     # add pickup cols
-    df_sim["Actual_RoomsPickup"] = df_sim.Actual_RoomsSold - df_sim.RoomsOTB
-    df_sim["Actual_ADR_Pickup"] = df_sim.Actual_ADR - df_sim.ADR_OTB
-    df_sim["Actual_RoomRevPickup"] = df_sim.Actual_RoomRev - df_sim.RevOTB
+    # df_sim["Actual_RoomsPickup"] = df_sim.Actual_RoomsSold - df_sim.RoomsOTB
+    # df_sim["Actual_ADR_Pickup"] = df_sim.Actual_ADR - df_sim.ADR_OTB
+    # df_sim["Actual_RoomRevPickup"] = df_sim.Actual_RoomRev - df_sim.RevOTB
 
-    df_sim["Actual_TRN_RoomsPickup"] = df_sim.Actual_TRN_RoomsSold - df_sim.TRN_RoomsOTB
-    df_sim["Actual_TRN_ADR_Pickup"] = df_sim.Actual_TRN_ADR - df_sim.TRN_ADR_OTB
-    df_sim["Actual_TRN_RoomRevPickup"] = df_sim.Actual_TRN_RoomRev - df_sim.TRN_RevOTB
+    # df_sim["Actual_TRN_RoomsPickup"] = df_sim.Actual_TRN_RoomsSold - df_sim.TRN_RoomsOTB
+    # df_sim["Actual_TRN_ADR_Pickup"] = df_sim.Actual_TRN_ADR - df_sim.TRN_ADR_OTB
+    # df_sim["Actual_TRN_RoomRevPickup"] = df_sim.Actual_TRN_RoomRev - df_sim.TRN_RevOTB
 
-    df_sim["Actual_NONTRN_RoomsPickup"] = (
-        df_sim.Actual_NONTRN_RoomsSold - df_sim.NONTRN_RoomsOTB
-    )
-    df_sim["Actual_NONTRN_ADR_Pickup"] = (
-        df_sim.Actual_NONTRN_ADR - df_sim.NONTRN_ADR_OTB
-    )
-    df_sim["Actual_NONTRN_RoomRevPickup"] = (
-        df_sim.Actual_NONTRN_RoomRev - df_sim.NONTRN_RevOTB
-    )
     return df_sim.copy()
 
 
@@ -316,16 +306,16 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
         night_tm_stats = []
 
         night_tm_stats.append(len(tminus_otb))  # add total OTB
-        night_tm_stats.append(round(np.mean(tminus_otb.ADR), 2))  # add total ADR
+        # night_tm_stats.append(round(np.mean(tminus_otb.ADR), 2))  # add total ADR
         night_tm_stats.append(round(np.sum(tminus_otb.ADR), 2))  # add total Rev
 
         mkt_segs = ["Transient", "Transient-Party", "Group", "Contract"]
         for seg in mkt_segs:
             mask = tminus_otb.CustomerType == seg
             night_tm_stats.append(len(tminus_otb[mask]))  # add segment OTB
-            night_tm_stats.append(
-                round(np.mean(tminus_otb[mask].ADR), 2)
-            )  # add segment ADR
+            # night_tm_stats.append(
+            #     round(np.mean(tminus_otb[mask].ADR), 2)
+            # )  # add segment ADR
             # MUST ADD TM REV TO night_tm_stats IN UTILS.PY (IN ORDER) BEFORE UN-COMMENTING THESE OUT
             night_tm_stats.append(
                 round(np.sum(tminus_otb[mask].ADR), 2)
@@ -344,27 +334,46 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
 
     tms = ["TM30", "TM15", "TM05"]
     segs = ["TRN", "TRNP", "GRP", "CNT"]
+    df_sim.drop(
+        columns=["TM30_Date", "TM15_Date", "TM05_Date"], inplace=True, errors="ignore"
+    )
+
     # print(df_sim.columns)
-    for tm in tms:
-        # add total hotel stats first
-        df_sim[tm + "_RoomsPickup"] = round(
-            df_sim["RoomsOTB"] - df_sim[tm + "_RoomsOTB"], 2
-        )
-        df_sim[tm + "_ADR_Pickup"] = round(
-            df_sim["ADR_OTB"] - df_sim[tm + "_ADR_OTB"], 2
-        )
-        df_sim[tm + "_RevPickup"] = round(df_sim["RevOTB"] - df_sim[tm + "_RevOTB"], 2)
-        for seg in segs:
-            # and now segmented stats
-            df_sim[tm + "_" + seg + "_RoomsPickup"] = round(
-                df_sim[seg + "_RoomsOTB"] - df_sim[tm + "_" + seg + "_RoomsOTB"], 2
-            )
-            df_sim[tm + "_" + seg + "_ADR_Pickup"] = round(
-                df_sim[seg + "_ADR_OTB"] - df_sim[tm + "_" + seg + "_ADR_OTB"], 2
-            )
-            df_sim[tm + "_" + seg + "_RevPickup"] = round(
-                df_sim[seg + "_RevOTB"] - df_sim[tm + "_" + seg + "_RevOTB"], 2
-            )
+    # for tm in tms:
+    #     # add total hotel stats first
+    #     df_sim[tm + "_RoomsPickup"] = round(
+    #         df_sim["RoomsOTB"] - df_sim[tm + "_RoomsOTB"], 2
+    #     )
+    #     df_sim[tm + "_ADR_Pickup"] = round(
+    #         df_sim["ADR_OTB"] - df_sim[tm + "_ADR_OTB"], 2
+    #     )
+    #     df_sim[tm + "_RevPickup"] = round(df_sim["RevOTB"] - df_sim[tm + "_RevOTB"], 2)
+    #     for seg in segs:
+    #         # and now segmented stats
+    #         df_sim[tm + "_" + seg + "_RoomsPickup"] = round(
+    #             df_sim[seg + "_RoomsOTB"] - df_sim[tm + "_" + seg + "_RoomsOTB"], 2
+    #         )
+    #         df_sim[tm + "_" + seg + "_ADR_Pickup"] = round(
+    #             df_sim[seg + "_ADR_OTB"] - df_sim[tm + "_" + seg + "_ADR_OTB"], 2
+    #         )
+    #         df_sim[tm + "_" + seg + "_RevPickup"] = round(
+    #             df_sim[seg + "_RevOTB"] - df_sim[tm + "_" + seg + "_RevOTB"], 2
+    #         )
+
+    # for tm in tms:
+    #     df_sim[tm + "_NONTRN_RoomsOTB"] = (
+    #         df_sim[tm + "_TRNP_RoomsOTB"]
+    #         + df_sim[tm + "_GRP_RoomsOTB"]
+    #         + df_sim[tm + "_CNT_RoomsOTB"]
+    #     )
+    #     df_sim[tm + "_NONTRN_RevOTB"] = (
+    #         df_sim[tm + "_TRNP_RevOTB"]
+    #         + df_sim[tm + "_GRP_RevOTB"]
+    #         + df_sim[tm + "_CNT_RevOTB"]
+    #     )
+    #     df_sim[tm + "_NONTRN_ADR_OTB"] = round(
+    #         df_sim[tm + "_NONTRN_RevOTB"] / df_sim[tm + "_NONTRN_RoomsOTB"], 2
+    #     )
     return df_sim.copy().fillna(0)
 
 
@@ -393,19 +402,9 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbo
         #         f"Pulling stats from STLY date {stly_date_str}, stay_date {stay_date_str}..."
         #     )
 
-        stly_sim = pd.read_csv(
-            SIM_CSV_FP.format(str(hotel_num), stly_date_str),
-            parse_dates=[
-                "Date",
-                "TM05_Date",
-                "TM15_Date",
-                "TM30_Date",
-                "STLY_Date",
-                "WeekEndDate",
-            ],
-        )
-        stly_sim.drop(columns={"Unnamed: 0": "Date"}, inplace=True, errors="ignore")
-        stly_sim.index = stly_sim.Date
+        stly_sim = pd.read_pickle(SIM_PICKLE_FP.format(str(hotel_num), stly_date_str))
+        # stly_sim.drop(columns={"Unnamed: 0": "Date"}, inplace=True, errors="ignore")
+        # stly_sim.index = stly_sim.Date
         stly_stats = []
         for col in stly_cols:
             stat = float(stly_sim.loc[stay_date_str, col])
@@ -422,16 +421,16 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbo
         apply_STLY_stats, result_type="expand", axis="columns"
     )
     # quick way to add ADR columns
-    stly_segs = [
-        ("STLY_RoomsOTB", "STLY_ADR_OTB", ""),
-        ("STLY_TRN_RoomsOTB", "STLY_TRN_ADR_OTB", "TRN_"),
-        ("STLY_TRNP_RoomsOTB", "STLY_TRNP_ADR_OTB", "TRNP_"),
-        ("STLY_GRP_RoomsOTB", "STLY_GRP_ADR_OTB", "GRP_"),
-        ("STLY_CNT_RoomsOTB", "STLY_CNT_ADR_OTB", "CNT_"),
-    ]
+    # stly_segs = [
+    #     ("STLY_RoomsOTB", "STLY_ADR_OTB", ""),
+    #     ("STLY_TRN_RoomsOTB", "STLY_TRN_ADR_OTB", "TRN_"),
+    #     ("STLY_TRNP_RoomsOTB", "STLY_TRNP_ADR_OTB", "TRNP_"),
+    #     ("STLY_GRP_RoomsOTB", "STLY_GRP_ADR_OTB", "GRP_"),
+    #     ("STLY_CNT_RoomsOTB", "STLY_CNT_ADR_OTB", "CNT_"),
+    # ]
 
-    for Rooms, adr, name in stly_segs:
-        df_sim["STLY_" + name + "RoomRev"] = df_sim[Rooms] * df_sim[adr]
+    # for Rooms, adr, name in stly_segs:
+    #     df_sim["STLY_" + name + "RoomRev"] = df_sim[Rooms] * df_sim[adr]
 
     if verbose > 0:
         print("\nSTLY statistics obtained.\n")
@@ -460,6 +459,9 @@ def generate_simulation(
     pull_stly=True,
     verbose=1,
     pull_lya=True,
+    add_pace=True,
+    add_cxl_realized=True,
+    predict_cxl=True,
 ):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
@@ -486,13 +488,17 @@ def generate_simulation(
         "as_of_date must be between 7/1/16 and 8/30/17."
     )
     # df_otb = get_otb_res(df_res, as_of_date)
-    df_otb = predict_cancellations(
-        df_res,
-        as_of_date,
-        hotel_num,
-        confusion=confusion,
-        verbose=verbose,
-    )
+    if predict_cxl:
+        df_otb = predict_cancellations(
+            df_res,
+            as_of_date,
+            hotel_num,
+            confusion=confusion,
+            verbose=verbose,
+        )
+
+    else:
+        df_otb = get_future_res(df_res, as_of_date)
 
     if hotel_num == 1:
         capacity = H1_CAPACITY
@@ -505,9 +511,10 @@ def generate_simulation(
         df_res,
         as_of_date,
     )
-    df_sim = add_other_market_seg(df_sim)
+    # df_sim = add_other_market_seg(df_sim)
     df_sim = add_sim_cols(df_sim, df_dbd, capacity, pull_lya=pull_lya)
-    df_sim = add_cxl_cols(df_sim, df_res, as_of_date)
+    if add_cxl_realized:
+        df_sim = add_cxl_cols(df_sim, df_res, as_of_date)
 
     if verbose > 0:
         print("Estimating prices...")
@@ -523,9 +530,11 @@ def generate_simulation(
         df_sim = add_stly_cols(
             df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbose=verbose
         )
+    if add_pace:
+        print("Calculating pace statistics...")
         df_sim = add_pace_cols(df_sim)
 
     if verbose > 0:
-        print(f"\nSimulation setup complete. As of date: {as_of_date}\n")
+        print(f"\nSimulation setup complete. As of date: {as_of_date}.\n")
 
     return df_sim.copy()
