@@ -322,5 +322,5 @@ def generate_hotel_dfs(res_filepath, capacity=None):
         capacity = df_dbd.RoomsSold.max()
 
     df_dbd = add_dbd_columns(df_dbd, capacity=capacity)
-
+    df_dbd = add_other_market_seg(df_dbd)
     return df_res, df_dbd

@@ -18,20 +18,20 @@ H1_RES = pd.read_pickle("pickle/h1_res.pick")
 H2_RES = pd.read_pickle("pickle/h2_res.pick")
 H1_DBD = pd.read_pickle("pickle/h1_dbd.pick")
 H2_DBD = pd.read_pickle("pickle/h2_dbd.pick")
+FOLDER = "./sims/pickle"
 
 
 def save_sim_records(df_dbd, df_res, hotel_num, skip_existing=False):
-    start = datetime.date(2016, 3, 1)
-    stop = datetime.date(2017, 8, 31)
+    start = datetime.date(2015, 8, 1)
+    stop = datetime.date(2017, 8, 1)
     all_dates = [
         datetime.datetime.strftime(start + datetime.timedelta(days=x), format=DATE_FMT)
         for x in range((stop - start).days + 1)
     ]
 
-    folder = "./sims/"
     counter = 0
     for as_of_date in all_dates:
-        out_file = str(folder + f"h{str(hotel_num)}_sim_{as_of_date}.csv")
+        out_file = str(FOLDER + f"h{str(hotel_num)}_sim_{as_of_date}.pick")
         df_sim = generate_simulation(
             df_dbd,
             as_of_date,
@@ -41,10 +41,12 @@ def save_sim_records(df_dbd, df_res, hotel_num, skip_existing=False):
             pull_stly=False,
             verbose=0,
             pull_lya=False,
+            add_pace=False,
+            add_cxl_realized=False,
         )
         df_sim.drop(columns=["Unnamed: 0"], inplace=True, errors="ignore")
 
-        df_sim.to_csv(out_file)
+        df_sim.to_pickle(out_file)
         counter += 1
 
         print(f"Saved file {out_file}.")
