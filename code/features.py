@@ -3,6 +3,7 @@
 # Features for hotel 1 cancellation forecast
 X1_cxl_cols = [
     "LeadTime",
+    "DaysUntilArrival",
     "LOS",
     "StaysInWeekendNights",
     "StaysInWeekNights",
@@ -15,7 +16,6 @@ X1_cxl_cols = [
     "PreviousBookings",
     "PreviousCancellations",
     "PreviousBookingsNotCanceled",
-    "BookingChanges",
     "DaysInWaitingList",
     "RequiredCarParkingSpaces",
     "IsRepeatedGuest",
@@ -53,6 +53,7 @@ X1_cxl_cols = [
 # Features for hotel 2 cancellation forecast
 X2_cxl_cols = [
     "LeadTime",
+    "DaysUntilArrival",
     "LOS",
     "StaysInWeekendNights",
     "StaysInWeekNights",
@@ -65,7 +66,6 @@ X2_cxl_cols = [
     "PreviousBookings",
     "PreviousCancellations",
     "PreviousBookingsNotCanceled",
-    "BookingChanges",
     "DaysInWaitingList",
     "RequiredCarParkingSpaces",
     "IsRepeatedGuest",

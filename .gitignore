@@ -4,4 +4,4 @@ data/
 code/__pycache__/
 code/.ipynb_checkpoints
 code/pickle
-code/sims
+code/sims/

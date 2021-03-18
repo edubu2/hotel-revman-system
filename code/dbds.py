@@ -11,6 +11,8 @@ from dateutil.relativedelta import *
 from features import X1_cxl_cols, X2_cxl_cols
 from xgboost import XGBClassifier
 
+DATE_FMT = "%Y-%m-%d"
+
 
 def parse_dates(df_res):
     """
@@ -26,7 +28,6 @@ def parse_dates(df_res):
         - New column: 'CheckoutDate'
         - Changed column: 'StatusDate'
     """
-    df_res.loc[0, "Agent"]
     df_res = df_res.replace("       NULL", np.NaN)
 
     df_res["ArrivalDate"] = pd.to_datetime(
@@ -149,71 +150,61 @@ def res_to_dbd(df_res, first_date="2015-07-01"):
     ____
     Parameters:
         - df_res (pandas.DataFrame, required): reservations DataFrame
-        - first_date (str ("%Y-%m-%d"), optional): resulting day-by-days DataFrame will start on this day
+        - first_date (str (DATE_FMT), optional): resulting day-by-days DataFrame will start on this day
     """
-    mask = df_res["IsCanceled"] == 0
-    df_dates = df_res[mask].copy()
-
-    date = pd.to_datetime(first_date, format="%Y-%m-%d")
+    df_dates = df_res.copy()
+    date = pd.to_datetime(first_date, format=DATE_FMT)
     end_date = datetime.date(2017, 8, 31)
     delta = datetime.timedelta(days=1)
     max_los = int(df_dates["LOS"].max())
 
-    nightly_stats = {}
+    nightly_stats = {}  # will contain {'date': {'stat': val, ...}, ...}
 
     while date <= end_date:
 
-        date_string = datetime.datetime.strftime(date, format="%Y-%m-%d")
+        date_string = datetime.datetime.strftime(date, format=DATE_FMT)
         tminus = 0
 
         # initialize date dict, which will go into nightly_stats as {'date': {'stat': 'val', 'stat', 'val'}}
-        date_stats = defaultdict(int)
+        day_stats = defaultdict(int)
+        mask = (df_dates.ArrivalDate <= date) & (df_dates.CheckoutDate > date)
 
-        # start on the arrival date and move back
-        # to capture ALL reservations touching 'date' (and not just those that arrive on 'date')
-        for _ in range(max_los):
+        day_stats["NumCancels"] += df_dates[mask].IsCanceled.sum()
 
-            #
-            date_tminus = date - pd.DateOffset(tminus)
+        mask = (
+            (df_dates.ArrivalDate <= date)
+            & (df_dates.CheckoutDate > date)
+            & (df_dates.IsCanceled == 0)
+        )
 
-            date_tminus_string = datetime.datetime.strftime(
-                date_tminus, format="%Y-%m-%d"
-            )
+        df_night = df_dates[mask].copy()
+        day_stats["RoomsSold"] += len(df_night)
+        day_stats["RoomRev"] += df_night.ADR.sum()
 
-            mask = (
-                (df_dates.ArrivalDate == date_tminus_string)
-                & (df_dates.LOS >= 1 + tminus)
-                & (df_dates.IsCanceled == 0)
-            )
+        df_night = (
+            df_night[["ResNum", "CustomerType", "ADR"]]
+            .groupby("CustomerType")
+            .agg({"ResNum": "count", "ADR": "sum"})
+            .rename(columns={"ResNum": "RS", "ADR": "Rev"})
+        )
 
-            date_stats["RoomsSold"] += len(df_dates[mask])
-            date_stats["RoomRev"] += df_dates[mask].ADR.sum()
+        seg_codes = [
+            ("Transient", "TRN"),
+            ("Transient-Party", "TRNP"),
+            ("Group", "GRP"),
+            ("Contract", "CNT"),
+        ]
 
-            tmp = (
-                df_dates[mask][["ResNum", "CustomerType", "ADR"]]
-                .groupby("CustomerType")
-                .agg({"ResNum": "count", "ADR": "sum"})
-                .rename(columns={"ResNum": "RS", "ADR": "Rev"})
-            )
+        for seg, code in seg_codes:
+            if seg in list(df_night.index):
+                day_stats[code + "_RoomsSold"] += df_night.loc[seg, "RS"]
+                day_stats[code + "_RoomRev"] += df_night.loc[seg, "Rev"]
+            else:
+                day_stats[code + "_RoomsSold"] += 0
+                day_stats[code + "_RoomRev"] += 0
 
-            if "Transient" in list(tmp.index):
-                date_stats["Trn_RoomsSold"] += tmp.loc["Transient", "RS"]
-                date_stats["Trn_RoomRev"] += tmp.loc["Transient", "Rev"]
-            if "Transient-Party" in list(tmp.index):
-                date_stats["TrnP_RoomsSold"] += tmp.loc["Transient-Party", "RS"]
-                date_stats["TrnP_RoomRev"] += tmp.loc["Transient-Party", "Rev"]
-            if "Group" in list(tmp.index):
-                date_stats["Grp_RoomsSold"] += tmp.loc["Group", "RS"]
-                date_stats["Grp_RoomRev"] += tmp.loc["Group", "Rev"]
-            if "Contract" in list(tmp.index):
-                date_stats["Cnt_RoomsSold"] += tmp.loc["Contract", "RS"]
-                date_stats["Cnt_RoomRev"] += tmp.loc["Contract", "Rev"]
-
-            tminus += 1
-
-        nightly_stats[date_string] = dict(date_stats)
+        nightly_stats[date_string] = dict(day_stats)
         date += delta
-
     return pd.DataFrame(nightly_stats).transpose()
 
 
@@ -226,7 +217,8 @@ def add_dbd_columns(df_dbd, capacity):
         - 'DOW' (day-of-week)
         - 'WD' (weekday - binary)
         - 'WE' (weekend - binary)
-        - 'STLY_Date' (datetime "%Y-%m-%d")
+        - 'STLY_Date' (datetime DATE_FMT)
+        - 'NumCancels'
 
     _____
     Parameters:
@@ -239,12 +231,16 @@ def add_dbd_columns(df_dbd, capacity):
 
     # Add ADR by segment
     df_dbd["ADR"] = round(df_dbd.RoomRev / df_dbd.RoomsSold, 2)
-    df_dbd["Trn_ADR"] = round(df_dbd.Trn_RoomRev / df_dbd.Trn_RoomsSold, 2)
-    df_dbd["TrnP_ADR"] = round(df_dbd.TrnP_RoomRev / df_dbd.TrnP_RoomsSold, 2)
-    df_dbd["Grp_ADR"] = round(df_dbd.Grp_RoomRev / df_dbd.Grp_RoomsSold, 2)
-    df_dbd["Cnt_ADR"] = round(df_dbd.Cnt_RoomRev / df_dbd.Cnt_RoomsSold, 2)
+    df_dbd["TRN_ADR"] = round(df_dbd.TRN_RoomRev / df_dbd.TRN_RoomsSold, 2)
+    df_dbd["TRNP_ADR"] = round(df_dbd.TRNP_RoomRev / df_dbd.TRNP_RoomsSold, 2)
+    df_dbd["GRP_ADR"] = round(df_dbd.GRP_RoomRev / df_dbd.GRP_RoomsSold, 2)
+    df_dbd["CNT_ADR"] = round(df_dbd.CNT_RoomRev / df_dbd.CNT_RoomsSold, 2)
+    df_dbd["TRN_RevPAR"] = round(df_dbd.TRN_RoomRev / df_dbd.TRN_RoomsSold, 2)
+    df_dbd["TRNP_RevPAR"] = round(df_dbd.TRNP_RoomRev / df_dbd.TRNP_RoomsSold, 2)
+    df_dbd["GRP_RevPAR"] = round(df_dbd.GRP_RoomRev / df_dbd.GRP_RoomsSold, 2)
+    df_dbd["CNT_RevPAR"] = round(df_dbd.CNT_RoomRev / df_dbd.CNT_RoomsSold, 2)
 
-    dow = pd.to_datetime(df_dbd.index, format="%Y-%m-%d")
+    dow = pd.to_datetime(df_dbd.index, format=DATE_FMT)
     dow = dow.strftime("%a")
     df_dbd.insert(0, "DOW", dow)
     df_dbd["WE"] = (df_dbd.DOW == "Fri") | (df_dbd.DOW == "Sat")
@@ -256,18 +252,19 @@ def add_dbd_columns(df_dbd, capacity):
         "ADR",
         "RoomRev",
         "RevPAR",
-        "Trn_RoomsSold",
-        "Trn_ADR",
-        "Trn_RoomRev",
-        "Grp_RoomsSold",
-        "Grp_ADR",
-        "Grp_RoomRev",
-        "TrnP_RoomsSold",
-        "TrnP_ADR",
-        "TrnP_RoomRev",
-        "Cnt_RoomsSold",
-        "Cnt_ADR",
-        "Cnt_RoomRev",
+        "NumCancels",
+        "TRN_RoomsSold",
+        "TRN_ADR",
+        "TRN_RoomRev",
+        "GRP_RoomsSold",
+        "GRP_ADR",
+        "GRP_RoomRev",
+        "TRNP_RoomsSold",
+        "TRNP_ADR",
+        "TRNP_RoomRev",
+        "CNT_RoomsSold",
+        "CNT_ADR",
+        "CNT_RoomRev",
         "WE",
         "WD",
     ]
@@ -279,9 +276,26 @@ def add_dbd_columns(df_dbd, capacity):
     )
     df_dbd["STLY_Date"] = df_dbd.index.map(stly_lambda)
 
+    df_dbd.index = pd.to_datetime(df_dbd.index, format=DATE_FMT)
     df_dbd.fillna(0, inplace=True)
 
-    return df_dbd
+    return df_dbd.copy()
+
+
+def add_other_market_seg(df_dbd):
+    """
+    To simplify complexity, combine Grp, Trnp, Cnt cols into one 'NONTRN_'.
+    Takes and returns a modified df_sim.
+    """
+    df_dbd["NONTRN_RoomsSold"] = (
+        df_dbd.TRNP_RoomsSold + df_dbd.GRP_RoomsSold + df_dbd.CNT_RoomsSold
+    )
+    df_dbd["NONTRN_RoomRev"] = (
+        df_dbd.TRNP_RoomRev + df_dbd.GRP_RoomRev + df_dbd.CNT_RoomRev
+    )
+    df_dbd["NONTRN_ADR"] = round(df_dbd.NONTRN_RoomRev / df_dbd.NONTRN_RoomsSold, 2)
+
+    return df_dbd.copy()
 
 
 def generate_hotel_dfs(res_filepath, capacity=None):
