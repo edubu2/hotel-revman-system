@@ -35,10 +35,10 @@ import time
 
 # --- ADJUST THESE VARIABLES FROM STEP 1 - STEP 2 ---
 # --- SEE INSTRUCTIONS IN DOCSTRING ---
-FOLDER = "./sims.pickle/"
-START = datetime.date(2015, 8, 1)
+FOLDER = "./sims/pickle"
+START = datetime.date(2016, 8, 24)
 STOP = datetime.date(2017, 8, 1)
-PULL_EXTENDED = FALSE  # set to True only for run 2 (see instructions in docstring)
+PULL_EXTENDED = False  # set to True only for run 2 (see instructions in docstring)
 
 # ---- STOP ----
 
@@ -58,29 +58,15 @@ def save_sim_records(
         for x in range((STOP - START).days + 1)
     ]
 
-    counter = 0
+    counter = 1
 
     for as_of_date in all_dates:
 
         if counter % 100 == 0:
-            time.sleep(60)
+            time.sleep(60)  # save cpu
         out_file = str(FOLDER + f"h{str(hotel_num)}_sim_{as_of_date}.pick")
 
         if PULL_EXTENDED:
-            df_sim = generate_simulation(
-                df_dbd,
-                as_of_date,
-                hotel_num,
-                df_res,
-                confusion=False,
-                pull_stly=False,
-                verbose=0,
-                pull_lya=False,
-                add_pace=False,
-                add_cxl_realized=False,
-            )
-
-        else:
             df_sim = generate_simulation(
                 df_dbd,
                 as_of_date,
@@ -94,6 +80,20 @@ def save_sim_records(
                 add_cxl_realized=True,
             )
 
+        else:
+            df_sim = generate_simulation(
+                df_dbd,
+                as_of_date,
+                hotel_num,
+                df_res,
+                confusion=False,
+                pull_stly=False,
+                verbose=0,
+                pull_lya=False,
+                add_pace=False,
+                add_cxl_realized=False,
+            )
+
         df_sim.to_pickle(out_file)
         counter += 1
 
@@ -104,12 +104,12 @@ def save_sim_records(
 
 def main(h1_dbd, h1_res, h2_dbd, h2_res):
     print("Starting hotel 1...")
-    save_sim_records(h1_dbd, h1_res, 1)
+    # save_sim_records(h1_dbd, h1_res, 1)
     print(
         f"Finished retrieving historical OTB records for Hotel 1\n",
         "Sleeping ten seconds for CPU health...",
     )
-    time.sleep(10)
+    # time.sleep(10)
     print("Starting hotel 2...")
     save_sim_records(h2_dbd, h2_res, 2)
     print("All files saved.")
