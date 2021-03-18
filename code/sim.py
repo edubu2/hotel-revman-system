@@ -84,6 +84,11 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
     df_sim["WE"] = (df_sim.DOW == "Fri") | (df_sim.DOW == "Sat")
     df_sim["WD"] = df_sim.WE is False
 
+    # one-hot-encode DOW column
+    ohe_dow = pd.get_dummies(df_sim.DOW, drop_first=True)
+    dow_ohe_cols = list(ohe_dow.columns)
+    df_sim[dow_ohe_cols] = ohe_dow
+
     # add STLY date
     stly_lambda = lambda x: pd.to_datetime(x) + relativedelta(
         years=-1, weekday=pd.to_datetime(x).weekday()
@@ -138,6 +143,7 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
         - 'Occ' (occupancy)
         - 'RevPAR' (revenue per available room)
         - 'ADR' (by segment)
+        - 'NONTRN_' stats (non-transient)
         - 'RemSupply' (RoomsOTB - ProjectedCXLs)
         - 'DOW' (day-of-week)
         - 'WD' (weekday - binary)
@@ -210,6 +216,22 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
     df_sim["Actual_TRN_RoomsPickup"] = df_sim.Actual_TRN_RoomsSold - df_sim.TRN_RoomsOTB
     df_sim["Actual_TRN_ADR_Pickup"] = df_sim.Actual_TRN_ADR - df_sim.TRN_ADR_OTB
     df_sim["Actual_TRN_RoomRevPickup"] = df_sim.Actual_TRN_RoomRev - df_sim.TRN_RevOTB
+    return df_sim.copy()
+
+
+def add_other_market_seg(df_sim):
+    """
+    To simplify complexity, combine Grp, Trnp, Cnt cols into one 'NONTRN_'.
+    Takes and returns a modified df_sim.
+    """
+    df_sim["NONTRN_RoomsOTB"] = (
+        df_sim.TRNP_RoomsOTB + df_sim.GRP_RoomsOTB + df_sim.CNT_RoomsOTB
+    )
+    df_sim["NONTRN_RoomRevOTB"] = (
+        df_sim.TRNP_RevOTB + df_sim.GRP_RevOTB + df_sim.CNT_RevOTB
+    )
+    df_sim["NONTRN_ADR_OTB"] = df_sim.NONTRN_RoomRevOTB / df_sim.NONTRN_RoomsOTB
+
     return df_sim.copy()
 
 
@@ -466,6 +488,7 @@ def generate_simulation(
         as_of_date,
     )
     df_sim = add_sim_cols(df_sim, df_dbd, capacity, pull_lya=pull_lya)
+    df_sim = add_other_market_seg(df_sim)
     df_sim = add_cxl_cols(df_sim, df_res, as_of_date)
 
     if verbose > 0:
