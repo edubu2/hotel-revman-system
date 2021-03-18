@@ -38,7 +38,7 @@ import time
 FOLDER = "../data/otb-data/"
 START = datetime.date(2016, 8, 1)
 STOP = datetime.date(2017, 8, 1)
-PULL_EXTENDED = False  # set to True only for run 2 (see instructions in docstring)
+PULL_EXTENDED = True  # set to True only for run 2 (see instructions in docstring)
 
 # ---- STOP ----
 
