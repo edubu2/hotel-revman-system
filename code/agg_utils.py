@@ -1,0 +1,31 @@
+stly_cols = [
+    'RoomsOTB',
+    'ADR_OTB',
+    'RevOTB',
+    'CxlForecast',
+    'TRN_RoomsOTB',
+    'TRN_RevOTB',
+    'TRN_CxlForecast',
+    'TM30_RoomsOTB',
+    'TM30_RevOTB',
+    'TM30_TRN_RoomsOTB',
+    'TM30_TRN_RevOTB',
+    'TM15_RoomsOTB',
+    'TM15_RevOTB',
+    'TM15_TRN_RoomsOTB',
+    'TM15_TRN_RevOTB',
+    'TM05_RoomsOTB',
+    'TM05_RevOTB',
+    'TM05_TRN_RoomsOTB',
+    'TM05_TRN_RevOTB',
+]
+# new cols start here
+ly_cols = [  # must match df_dbd col names
+    "RoomsSold",
+    "ADR",
+    "RoomRev",
+    "NumCancels",
+    "TRN_RoomsSold",
+    "TRN_ADR",
+    "TRN_RoomRev",
+]
