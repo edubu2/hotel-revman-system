@@ -22,7 +22,7 @@ import pandas as pd
 import numpy as np
 from dateutil.relativedelta import relativedelta
 from sim_utils import stly_cols, ly_cols, tm_cols, pace_tuples
-from model_cancellations import get_otb_res, predict_cancellations
+from model_cancellations import get_otb_res, predict_cancellations, get_future_res
 
 H1_CAPACITY = 187
 H2_CAPACITY = 226
@@ -118,12 +118,12 @@ def aggregate_reservations(night_df, date_string):
     date_stats = defaultdict(int)
     date_stats["RoomsOTB"] += len(night_df)
     date_stats["RevOTB"] += night_df.ADR.sum()
-    date_stats["CxlForecast"] += night_df.will_cancel.sum()
+    # date_stats["CxlForecast"] += night_df.will_cancel.sum()
     tmp = (
-        night_df[["ResNum", "CustomerType", "ADR", "will_cancel"]]
+        night_df[["ResNum", "CustomerType", "ADR"]]
         .groupby("CustomerType")
-        .agg({"ResNum": "count", "ADR": "sum", "will_cancel": "sum"})
-        .rename(columns={"ResNum": "RS", "ADR": "Rev", "will_cancel": "CXL"})
+        .agg({"ResNum": "count", "ADR": "sum"})
+        .rename(columns={"ResNum": "RS", "ADR": "Rev"})
     )
 
     seg_codes = [
@@ -136,11 +136,11 @@ def aggregate_reservations(night_df, date_string):
         if seg in list(tmp.index):
             date_stats[code + "_RoomsOTB"] += tmp.loc[seg, "RS"]
             date_stats[code + "_RevOTB"] += tmp.loc[seg, "Rev"]
-            date_stats[code + "_CxlForecast"] += tmp.loc[seg, "CXL"]
+            # date_stats[code + "_CxlForecast"] += tmp.loc[seg, "CXL"]
         else:
             date_stats[code + "_RoomsOTB"] += 0
             date_stats[code + "_RevOTB"] += 0
-            date_stats[code + "_CxlForecast"] += 0
+            # date_stats[code + "_CxlForecast"] += 0
 
     return date_stats
 
@@ -183,14 +183,14 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
 
     """
     # add RemSupply columns'
-    df_sim["RemSupply"] = (
-        capacity - df_sim.RoomsOTB.astype(int) + df_sim.CxlForecast.astype(int)
-    )
+    # df_sim["RemSupply"] = (
+    #     capacity - df_sim.RoomsOTB.astype(int) + df_sim.CxlForecast.astype(int)
+    # )
     # to avoid errors, only operate on existing columns
     # Add ADR by segment
     df_sim["ADR_OTB"] = round(df_sim.RevOTB / df_sim.RoomsOTB, 2)
 
-    seg_codes = ["TRN", "NONTRN", "TRNP", "GRP", "CNT"]
+    seg_codes = ["TRN", "TRNP", "GRP", "CNT"]
     # for code in seg_codes:
     #     if df_sim[code + "_RoomsOTB"].sum() > 0:
     #         df_sim[code + "_ADR_OTB"] = round(
@@ -461,6 +461,7 @@ def generate_simulation(
     pull_lya=True,
     add_pace=True,
     add_cxl_realized=True,
+    predict_cxl=True,
 ):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
@@ -487,13 +488,17 @@ def generate_simulation(
         "as_of_date must be between 7/1/16 and 8/30/17."
     )
     # df_otb = get_otb_res(df_res, as_of_date)
-    df_otb = predict_cancellations(
-        df_res,
-        as_of_date,
-        hotel_num,
-        confusion=confusion,
-        verbose=verbose,
-    )
+    if predict_cxl:
+        df_otb = predict_cancellations(
+            df_res,
+            as_of_date,
+            hotel_num,
+            confusion=confusion,
+            verbose=verbose,
+        )
+
+    else:
+        df_otb = get_future_res(df_res, as_of_date)
 
     if hotel_num == 1:
         capacity = H1_CAPACITY

@@ -15,6 +15,14 @@ from model_tools import (
 DATE_FMT = "%Y-%m-%d"
 
 
+def get_future_res(df_res, as_of_date):
+    otb_mask = (df_res.ResMadeDate <= as_of_date) & (  # reservations made before AOD
+        df_res.CheckoutDate > as_of_date
+    )  # checking out after AOD
+
+    return df_res.loc[mask].copy()
+
+
 def get_otb_res(df_res, as_of_date):
     """
     Takes a list of reservations and returns all reservations on-the-books (OTB) as of a given date (df_otb).
@@ -113,7 +121,7 @@ def model_cancellations(df_res, as_of_date, hotel_num, verbose=1):
         use_label_encoder=False,
         eval_metric="logloss",
         random_state=42,
-        n_jobs=12,
+        n_jobs=36,
         learning_rate=param_lr,
         n_estimators=param_ne,
         max_depth=param_md,
