@@ -56,7 +56,7 @@ def split_reservations(df_res, as_of_date, features, verbose=1):
         - stay_date: the night for which we're predicting cancels
     """
     as_of_dt = pd.to_datetime(as_of_date, format=DATE_FMT)
-    df_res["DaysUntilArrival"] = (as_of_dt - df_res.ArrivalDate).dt.days
+    df_res["DaysUntilArrival"] = (df_res.ArrivalDate - as_of_dt).dt.days
     # train: all reservations that have already checked out
     # test: all OTB reservations
     train_mask = df_res["CheckoutDate"] <= as_of_date
