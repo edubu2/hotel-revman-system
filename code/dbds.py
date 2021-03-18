@@ -1,3 +1,25 @@
+"""
+WELCOME to the first script in the hotel revenue management simulation setup.
+
+INSTRUCTIONS TO REPRODUCE LOCALLY
+------
+
+From a Jupyter notebook or Python session, execute the following commands:
+--- START CODE ---
+import pandas as pd
+from dbds import generate_hotel_dfs
+
+h1_res, h1_dbd = generate_hotel_dfs("../data/H1.csv", capacity=187)
+h2_res, h2_dbd = generate_hotel_dfs("../data/H2.csv", capacity=226)
+
+h1_res.to_pickle("pickle/h1_res.pick")
+h1_dbd.to_pickle("pickle/h1_dbd.pick")
+h2_res.to_pickle("pickle/h2_res.pick")
+h2_dbd.to_pickle("pickle/h2_dbd.pick")
+--- STOP CODE ---
+
+When the above commands execute (without errors), move on to save_sims_1.py.
+"""
 import pandas as pd
 import numpy as np
 

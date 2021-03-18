@@ -118,12 +118,12 @@ def aggregate_reservations(night_df, date_string):
     date_stats = defaultdict(int)
     date_stats["RoomsOTB"] += len(night_df)
     date_stats["RevOTB"] += night_df.ADR.sum()
-    # date_stats["CxlForecast"] += night_df.will_cancel.sum()
+    date_stats["CxlForecast"] += night_df.will_cancel.sum()
     tmp = (
-        night_df[["ResNum", "CustomerType", "ADR"]]
+        night_df[["ResNum", "CustomerType", "ADR", "will_cancel"]]
         .groupby("CustomerType")
-        .agg({"ResNum": "count", "ADR": "sum"})
-        .rename(columns={"ResNum": "RS", "ADR": "Rev"})
+        .agg({"ResNum": "count", "ADR": "sum", "will_cancel": "sum"})
+        .rename(columns={"ResNum": "RS", "ADR": "Rev", "will_cancel": "CXL"})
     )
 
     seg_codes = [
@@ -136,11 +136,11 @@ def aggregate_reservations(night_df, date_string):
         if seg in list(tmp.index):
             date_stats[code + "_RoomsOTB"] += tmp.loc[seg, "RS"]
             date_stats[code + "_RevOTB"] += tmp.loc[seg, "Rev"]
-            # date_stats[code + "_CxlForecast"] += tmp.loc[seg, "CXL"]
+            date_stats[code + "_CxlForecast"] += tmp.loc[seg, "CXL"]
         else:
             date_stats[code + "_RoomsOTB"] += 0
             date_stats[code + "_RevOTB"] += 0
-            # date_stats[code + "_CxlForecast"] += 0
+            date_stats[code + "_CxlForecast"] += 0
 
     return date_stats
 
