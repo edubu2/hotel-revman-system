@@ -2,6 +2,27 @@
 This script generates over 700 .csv files containing on the books data 
 as of each date from 2016-07-01 to 2017-08-31 for both H1 and H2.
 
+It takes several hours for each run. But once it's saved, the data
+can be accessed and manipulated very quickly.
+
+INSTRUCTIONS
+-------
+
+Upon initial setup, you'll need to execute this script twice
+with different parameters:
+    first run: 
+        - ensure FOLDER = "./sims.pickle"
+        - ensure START = datetime.date(2015, 8, 1)
+        - ensure STOP = datetime.date(2017, 8, 1)
+        - ensure PULL_EXTENDED = FALSE
+    
+    second run:
+        - ensure FOLDER = "../data/otb_data"
+        - ensure START = datetime.date(2016, 8, 1)
+        - ensure STOP = datetime.date(2017, 8, 1)
+        - ensure PULL_EXTENDED = FALSE
+        
+
 Execute from the command line, like so:
     > python3 save_sims.py
 """
@@ -13,38 +34,63 @@ import datetime
 from sim import generate_simulation
 import time
 
+# --- ADJUST THESE VARIABLES FROM STEP 1 - STEP 2 ---
+# --- SEE INSTRUCTIONS IN DOCSTRING ---
+FOLDER = "./sims/pickle"
+START = datetime.date(2015, 8, 1)
+STOP = datetime.date(2017, 8, 1)
+PULL_EXTENDED = FALSE  # set to True only for run 2 (see instructions in docstring)
+
+# ---- STOP ----
+
 DATE_FMT = "%Y-%m-%d"
 H1_RES = pd.read_pickle("pickle/h1_res.pick")
 H2_RES = pd.read_pickle("pickle/h2_res.pick")
 H1_DBD = pd.read_pickle("pickle/h1_dbd.pick")
 H2_DBD = pd.read_pickle("pickle/h2_dbd.pick")
-FOLDER = "./sims/pickle"
 
 
-def save_sim_records(df_dbd, df_res, hotel_num, skip_existing=False):
-    start = datetime.date(2015, 8, 1)
-    stop = datetime.date(2017, 8, 1)
+def save_sim_records(
+    df_dbd, df_res, hotel_num, skip_existing=False, pull_extended=False
+):
+
     all_dates = [
-        datetime.datetime.strftime(start + datetime.timedelta(days=x), format=DATE_FMT)
-        for x in range((stop - start).days + 1)
+        datetime.datetime.strftime(START + datetime.timedelta(days=x), format=DATE_FMT)
+        for x in range((STOP - START).days + 1)
     ]
 
     counter = 0
+
     for as_of_date in all_dates:
         out_file = str(FOLDER + f"h{str(hotel_num)}_sim_{as_of_date}.pick")
-        df_sim = generate_simulation(
-            df_dbd,
-            as_of_date,
-            hotel_num,
-            df_res,
-            confusion=False,
-            pull_stly=False,
-            verbose=0,
-            pull_lya=False,
-            add_pace=False,
-            add_cxl_realized=False,
-        )
-        df_sim.drop(columns=["Unnamed: 0"], inplace=True, errors="ignore")
+
+        if PULL_EXTENDED:
+            df_sim = generate_simulation(
+                df_dbd,
+                as_of_date,
+                hotel_num,
+                df_res,
+                confusion=False,
+                pull_stly=False,
+                verbose=0,
+                pull_lya=False,
+                add_pace=False,
+                add_cxl_realized=False,
+            )
+
+        else:
+            df_sim = generate_simulation(
+                df_dbd,
+                as_of_date,
+                hotel_num,
+                df_res,
+                confusion=False,
+                pull_stly=True,
+                verbose=0,
+                pull_lya=True,
+                add_pace=True,
+                add_cxl_realized=True,
+            )
 
         df_sim.to_pickle(out_file)
         counter += 1
