@@ -62,8 +62,8 @@ def save_sim_records(
 
     for as_of_date in all_dates:
 
-        if counter % 100 == 0:
-            time.sleep(60)  # save cpu
+        # if counter % 100 == 0:
+        #     time.sleep(60)  # save cpu
         out_file = str(FOLDER + f"h{str(hotel_num)}_sim_{as_of_date}.pick")
 
         if PULL_EXTENDED:
