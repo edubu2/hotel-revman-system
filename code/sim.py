@@ -27,7 +27,7 @@ from model_cancellations import get_otb_res, predict_cancellations
 H1_CAPACITY = 187
 H2_CAPACITY = 226
 DATE_FMT = "%Y-%m-%d"
-SIM_CSV_FP = "./sims/h{}_sim_{}.csv"
+SIM_PICKLE_FP = "./sims/pickleh{}_sim_{}.pick"
 
 
 def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
@@ -402,15 +402,11 @@ def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbo
         #         f"Pulling stats from STLY date {stly_date_str}, stay_date {stay_date_str}..."
         #     )
 
-        stly_sim = pd.read_pickle(
-            SIM_CSV_FP.format(str(hotel_num), stly_date_str),
-        )
+        stly_sim = pd.read_pickle(SIM_PICKLE_FP.format(str(hotel_num), stly_date_str))
         # stly_sim.drop(columns={"Unnamed: 0": "Date"}, inplace=True, errors="ignore")
         # stly_sim.index = stly_sim.Date
         stly_stats = []
-        print(stay_date_str)
         for col in stly_cols:
-            print(col)
             stat = float(stly_sim.loc[stay_date_str, col])
             stly_stats.append(stat)
 

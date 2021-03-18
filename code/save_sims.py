@@ -8,16 +8,15 @@ can be accessed and manipulated very quickly.
 INSTRUCTIONS
 -------
 
-Upon initial setup, you'll need to execute this script twice
-with different parameters:
+Upon initial setup, execute this script twice with different parameters:
     first run: 
-        - ensure FOLDER = "./sims.pickle"
+        - ensure FOLDER = "./sims.pickle/"
         - ensure START = datetime.date(2015, 8, 1)
         - ensure STOP = datetime.date(2017, 8, 1)
         - ensure PULL_EXTENDED = FALSE
     
     second run:
-        - ensure FOLDER = "../data/otb_data"
+        - ensure FOLDER = "../data/otb-data/"
         - ensure START = datetime.date(2016, 8, 1)
         - ensure STOP = datetime.date(2017, 8, 1)
         - ensure PULL_EXTENDED = FALSE
@@ -36,7 +35,7 @@ import time
 
 # --- ADJUST THESE VARIABLES FROM STEP 1 - STEP 2 ---
 # --- SEE INSTRUCTIONS IN DOCSTRING ---
-FOLDER = "./sims/pickle"
+FOLDER = "./sims.pickle/"
 START = datetime.date(2015, 8, 1)
 STOP = datetime.date(2017, 8, 1)
 PULL_EXTENDED = FALSE  # set to True only for run 2 (see instructions in docstring)
@@ -62,6 +61,9 @@ def save_sim_records(
     counter = 0
 
     for as_of_date in all_dates:
+
+        if counter % 100 == 0:
+            time.sleep(60)
         out_file = str(FOLDER + f"h{str(hotel_num)}_sim_{as_of_date}.pick")
 
         if PULL_EXTENDED:
