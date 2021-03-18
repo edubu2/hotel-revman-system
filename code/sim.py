@@ -40,6 +40,7 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
     """
 
     df_dates = df_otb.copy()
+    aod_dt = pd.to_datetime(as_of_date, format=DATE_FMT)
     date = pd.to_datetime(as_of_date, format=DATE_FMT)
     if date + pd.DateOffset(31) > datetime.date(2017, 8, 31):
         end_date = datetime.date(2017, 8, 31)
@@ -96,6 +97,8 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
 
     df_sim["STLY_Date"] = pd.to_datetime(df_sim.index.map(stly_lambda), format=DATE_FMT)
 
+    df_sim["DaysUntilArrival"] = (df_sim.index - aod_dt).dt.days
+
     return df_sim.copy()
 
 
@@ -137,6 +140,24 @@ def aggregate_reservations(night_df, date_string):
     return date_stats
 
 
+def add_other_market_seg(df_sim):
+    """
+    To simplify complexity, combine Grp, Trnp, Cnt cols into one 'NONTRN_'.
+    Takes and returns a modified df_sim.
+    """
+    df_sim["NONTRN_RoomsOTB"] = (
+        df_sim.TRNP_RoomsOTB + df_sim.GRP_RoomsOTB + df_sim.CNT_RoomsOTB
+    )
+    df_sim["NONTRN_RoomRevOTB"] = (
+        df_sim.TRNP_RevOTB + df_sim.GRP_RevOTB + df_sim.CNT_RevOTB
+    )
+    df_sim["NONTRN_ADR_OTB"] = round(
+        df_sim.NONTRN_RoomRevOTB / df_sim.NONTRN_RoomsOTB, 2
+    )
+
+    return df_sim.copy()
+
+
 def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
     """
     Adds several columns to df_sim, including:
@@ -170,7 +191,7 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
     # Add ADR by segment
     df_sim["ADR_OTB"] = round(df_sim.RevOTB / df_sim.RoomsOTB, 2)
 
-    seg_codes = ["TRN", "TRNP", "GRP", "CNT"]
+    seg_codes = ["TRN", "NONTRN", "TRNP", "GRP", "CNT"]
     for code in seg_codes:
         if df_sim[code + "_RoomsOTB"].sum() > 0:
             df_sim[code + "_ADR_OTB"] = round(
@@ -203,6 +224,9 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
         "TRN_RoomsSold",
         "TRN_ADR",
         "TRN_RoomRev",
+        "NONTRN_RoomsSold",
+        "NONTRN_ADR",
+        "NONTRN_RoomRev",
     ]
 
     for col in actual_cols:
@@ -216,24 +240,16 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
     df_sim["Actual_TRN_RoomsPickup"] = df_sim.Actual_TRN_RoomsSold - df_sim.TRN_RoomsOTB
     df_sim["Actual_TRN_ADR_Pickup"] = df_sim.Actual_TRN_ADR - df_sim.TRN_ADR_OTB
     df_sim["Actual_TRN_RoomRevPickup"] = df_sim.Actual_TRN_RoomRev - df_sim.TRN_RevOTB
-    return df_sim.copy()
 
-
-def add_other_market_seg(df_sim):
-    """
-    To simplify complexity, combine Grp, Trnp, Cnt cols into one 'NONTRN_'.
-    Takes and returns a modified df_sim.
-    """
-    df_sim["NONTRN_RoomsOTB"] = (
-        df_sim.TRNP_RoomsOTB + df_sim.GRP_RoomsOTB + df_sim.CNT_RoomsOTB
+    df_sim["Actual_NONTRN_RoomsPickup"] = (
+        df_sim.Actual_NONTRN_RoomsSold - df_sim.NONTRN_RoomsOTB
     )
-    df_sim["NONTRN_RoomRevOTB"] = (
-        df_sim.TRNP_RevOTB + df_sim.GRP_RevOTB + df_sim.CNT_RevOTB
+    df_sim["Actual_NONTRN_ADR_Pickup"] = (
+        df_sim.Actual_NONTRN_ADR - df_sim.NONTRN_ADR_OTB
     )
-    df_sim["NONTRN_ADR_OTB"] = round(
-        df_sim.NONTRN_RoomRevOTB / df_sim.NONTRN_RoomsOTB, 2
+    df_sim["Actual_NONTRN_RoomRevPickup"] = (
+        df_sim.Actual_NONTRN_RoomRev - df_sim.NONTRN_RevOTB
     )
-
     return df_sim.copy()
 
 
@@ -489,8 +505,8 @@ def generate_simulation(
         df_res,
         as_of_date,
     )
-    df_sim = add_sim_cols(df_sim, df_dbd, capacity, pull_lya=pull_lya)
     df_sim = add_other_market_seg(df_sim)
+    df_sim = add_sim_cols(df_sim, df_dbd, capacity, pull_lya=pull_lya)
     df_sim = add_cxl_cols(df_sim, df_res, as_of_date)
 
     if verbose > 0:
