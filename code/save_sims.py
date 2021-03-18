@@ -35,8 +35,8 @@ import time
 
 # --- ADJUST THESE VARIABLES FROM STEP 1 - STEP 2 ---
 # --- SEE INSTRUCTIONS IN DOCSTRING ---
-FOLDER = "./sims/pickle"
-START = datetime.date(2017, 3, 30)
+FOLDER = "../data/otb-data/"
+START = datetime.date(2016, 8, 1)
 STOP = datetime.date(2017, 8, 1)
 PULL_EXTENDED = False  # set to True only for run 2 (see instructions in docstring)
 
@@ -104,7 +104,7 @@ def save_sim_records(
 
 def main(h1_dbd, h1_res, h2_dbd, h2_res):
     print("Starting hotel 1...")
-    # save_sim_records(h1_dbd, h1_res, 1)
+    save_sim_records(h1_dbd, h1_res, 1)
     print(
         f"Finished retrieving historical OTB records for Hotel 1\n",
         "Sleeping ten seconds for CPU health...",
