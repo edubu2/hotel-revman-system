@@ -1,0 +1,52 @@
+Without TM_Pickup cols (Pickup Pace Only)
+Thu Mar 18 after midnight
+--------------------------
+R^2 Scores (no hyperparam tuning)
+- linreg simple score: 0.4740146510925262
+- random forest score: 0.5131041550793125
+- xgboost score: 0.5829845385400213
+
+XGBoost Grid Search CV(K=5) params:
+param_grid = {
+    'learning_rate':[0.001, 0.01, 0.1],
+    'n_estimators':range(250, 1250, 250),
+    'max_depth':range(4, 14, 2)
+}
+and the Results:
+{'learning_rate': 0.1, 'max_depth': 4, 'n_estimators': 1000}
+
+CV score: 0.6621441634711861
+
+Analysis: 
+    - lower than I was hoping for, but not bad at all considering the data I'm working with.
+    - need to try again with different grid search params.
+        - but first I want to try adding back in the recent pickup columns (instead of recent pickup pace alone) and see the impact.
+------
+
+With TM_Pickup cols (Pickup Pace Only)
+Thu Mar 18 after midnight
+--------------------------
+R^2 Scores (CV) (no hyperparam tuning)
+- linreg simple score: 0.611177882837083
+- random forest score: 0.6710556722796067
+- xgboost score: 0.78
+
+param_grid = {
+    'learning_rate':[0.15, 0.2, 0.25],
+    'n_estimators':[3000, 4000, 5000],
+    'max_depth':[1, 2, 3]
+}
+
+- best xgb params: {'learning_rate': 0.2, 'max_depth': 2, 'n_estimators': 4000}
+
+R^2 score on test set: -0.16
+
+- Instant improvement in CV scores, but will this harm ability to generalize? We'll have to wait and see. I'll keep them for now.
+
+------
+
+With TM_Pickup cols (Pickup Pace Only)
+Fri morning
+------------------------------
+
+
