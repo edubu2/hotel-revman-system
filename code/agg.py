@@ -226,9 +226,7 @@ def prep_demand_features(hotel_num):
     # drop unnecessary columns
     
     df_sim.drop(columns=trash_can, inplace=True)
-    df_sim.index = df_sim.id
-    df_sim = df_sim.reset_index('id', drop=True).drop(columns='id')
-    df_sim.index = df_sim.AsOfDate.astype(str) + ' - ' + df_sim.StayDate.astype(str)
+    df_sim.fillna(0, inplace=True)
     return df_sim
 
 
