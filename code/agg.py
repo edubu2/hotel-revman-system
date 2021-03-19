@@ -1,5 +1,5 @@
 """This script aggregates the data in ../data/otb-data/ folder
-that was generated from save_sims 1 & 2.
+that was generated from save_sims.py.
 
 It then adds in calculated statistics/features that will be used
 for modeling demand.
