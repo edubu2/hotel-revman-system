@@ -56,7 +56,57 @@ ly_cols_agg = [  # must match df_dbd col names
     "TRN_RoomRev",
 ]
 
+stly_pace_cols = [
+    'RoomsOTB_STLY',
+    'ADR_OTB_STLY',
+    'RevOTB_STLY',
+    'CxlForecast_STLY',
+    'RemSupply_STLY',
+    'SellingPrice_STLY',
+    'TRN_RoomsOTB_STLY',
+    'TRN_ADR_OTB_STLY',
+    'TRN_RevOTB_STLY',
+    'TRN_CxlForecast_STLY',
+    'NONTRN_RoomsOTB_STLY',
+    'NONTRN_ADR_OTB_STLY',
+    'NONTRN_RevOTB_STLY',
+    'NONTRN_CxlForecast_STLY',
+    'TM30_RoomsPickup_STLY',
+    'TM30_ADR_Pickup_STLY',
+    'TM30_RevPickup_STLY',
+    'TM30_TRN_RoomsPickup_STLY',
+    'TM30_TRN_ADR_Pickup_STLY',
+    'TM30_TRN_RevPickup_STLY',
+    'TM30_NONTRN_RoomsPickup_STLY',
+    'TM30_NONTRN_ADR_Pickup_STLY',
+    'TM30_NONTRN_RevPickup_STLY',
+    'TM15_RoomsPickup_STLY',
+    'TM15_ADR_Pickup_STLY',
+    'TM15_RevPickup_STLY',
+    'TM15_TRN_RoomsPickup_STLY',
+    'TM15_TRN_ADR_Pickup_STLY',
+    'TM15_TRN_RevPickup_STLY',
+    'TM15_NONTRN_RoomsPickup_STLY',
+    'TM15_NONTRN_ADR_Pickup_STLY',
+    'TM15_NONTRN_RevPickup_STLY',
+    'TM05_RoomsPickup_STLY',
+    'TM05_ADR_Pickup_STLY',
+    'TM05_RevPickup_STLY',
+    'TM05_TRN_RoomsPickup_STLY',
+    'TM05_TRN_ADR_Pickup_STLY',
+    'TM05_TRN_RevPickup_STLY',
+    'TM05_NONTRN_RoomsPickup_STLY',
+    'TM05_NONTRN_ADR_Pickup_STLY',
+    'TM05_NONTRN_RevPickup_STLY'
+]
+
+ty_pace_cols = [c[:-5] for c in stly_pace_cols]
+
+pace_tuples = list(zip(ty_pace_cols, stly_pace_cols))
+
 drop_cols_agg = [
+    'id',
+    'stly_id',
     'TM05_TRNP_RoomsOTB',
     'TM05_TRNP_RevOTB',
     'TM05_GRP_RoomsOTB',
@@ -119,3 +169,5 @@ drop_cols_agg = [
     "TM05_NONTRN_RevOTB",
     "TM05_NONTRN_ADR_OTB",
 ]
+
+trash_can = drop_cols_agg + stly_pace_cols
