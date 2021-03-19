@@ -105,7 +105,6 @@ ty_pace_cols = [c[:-5] for c in stly_pace_cols]
 pace_tuples = list(zip(ty_pace_cols, stly_pace_cols))
 
 drop_cols_agg = [
-    'id',
     'stly_id',
     'TM05_TRNP_RoomsOTB',
     'TM05_TRNP_RevOTB',

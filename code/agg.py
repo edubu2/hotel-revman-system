@@ -224,8 +224,12 @@ def prep_demand_features(hotel_num):
     df_sim = add_ty_features(df_sim, df_dbd, capacity)
     df_sim = merge_stly(df_sim)
     # drop unnecessary columns
+    
     df_sim.drop(columns=trash_can, inplace=True)
-    return df_sim.copy()
+    df_sim.index = df_sim.id
+    df_sim = df_sim.reset_index('id', drop=True).drop(columns='id')
+    df_sim.index = df_sim.AsOfDate.astype(str) + ' - ' + df_sim.StayDate.astype(str)
+    return df_sim
 
 
 
