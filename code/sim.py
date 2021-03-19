@@ -182,22 +182,9 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
         - pull_lya (set to False when using save_sims.py)
 
     """
-    # add RemSupply columns'
-    # df_sim["RemSupply"] = (
-    #     capacity - df_sim.RoomsOTB.astype(int) + df_sim.CxlForecast.astype(int)
-    # )
-    # to avoid errors, only operate on existing columns
-    # Add ADR by segment
     df_sim["ADR_OTB"] = round(df_sim.RevOTB / df_sim.RoomsOTB, 2)
 
     seg_codes = ["TRN", "NONTRN", "TRNP", "GRP", "CNT"]
-    # for code in seg_codes:
-    #     if df_sim[code + "_RoomsOTB"].sum() > 0:
-    #         df_sim[code + "_ADR_OTB"] = round(
-    #             df_sim[code + "_RevOTB"] / df_sim[code + "_RoomsOTB"], 2
-    #         )
-    #     else:
-    #         df_sim[code + "_ADR_OTB"] = 0
     if pull_lya:
 
         def apply_ly_cols(row):
@@ -211,35 +198,6 @@ def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
         df_sim[ly_new_cols] = df_sim.apply(apply_ly_cols, axis=1, result_type="expand")
 
         df_sim.fillna(0, inplace=True)
-
-    #     # add gap to LYA column
-    #     df_sim["RoomsGapToLYA"] = df_sim.LYA_RoomsSold - df_sim.RoomsOTB
-    #     df_sim["ADR_GapToLYA"] = df_sim.LYA_ADR - df_sim.ADR_OTB
-
-    # actual_cols = [
-    #     "RoomsSold",
-    #     "ADR",
-    #     "RoomRev",
-    #     "TRN_RoomsSold",
-    #     "TRN_ADR",
-    #     "TRN_RoomRev",
-    #     "NONTRN_RoomsSold",
-    #     "NONTRN_ADR",
-    #     "NONTRN_RoomRev",
-    # ]
-
-    # for col in actual_cols:
-    #     df_sim["Actual_" + col] = df_dbd[col]
-
-    # add pickup cols
-    # df_sim["Actual_RoomsPickup"] = df_sim.Actual_RoomsSold - df_sim.RoomsOTB
-    # df_sim["Actual_ADR_Pickup"] = df_sim.Actual_ADR - df_sim.ADR_OTB
-    # df_sim["Actual_RoomRevPickup"] = df_sim.Actual_RoomRev - df_sim.RevOTB
-
-    # df_sim["Actual_TRN_RoomsPickup"] = df_sim.Actual_TRN_RoomsSold - df_sim.TRN_RoomsOTB
-    # df_sim["Actual_TRN_ADR_Pickup"] = df_sim.Actual_TRN_ADR - df_sim.TRN_ADR_OTB
-    # df_sim["Actual_TRN_RoomRevPickup"] = df_sim.Actual_TRN_RoomRev - df_sim.TRN_RevOTB
-
     return df_sim.copy()
 
 
@@ -306,17 +264,12 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
         night_tm_stats = []
 
         night_tm_stats.append(len(tminus_otb))  # add total OTB
-        # night_tm_stats.append(round(np.mean(tminus_otb.ADR), 2))  # add total ADR
         night_tm_stats.append(round(np.sum(tminus_otb.ADR), 2))  # add total Rev
 
         mkt_segs = ["Transient", "Transient-Party", "Group", "Contract"]
         for seg in mkt_segs:
             mask = tminus_otb.CustomerType == seg
             night_tm_stats.append(len(tminus_otb[mask]))  # add segment OTB
-            # night_tm_stats.append(
-            #     round(np.mean(tminus_otb[mask].ADR), 2)
-            # )  # add segment ADR
-            # MUST ADD TM REV TO night_tm_stats IN UTILS.PY (IN ORDER) BEFORE UN-COMMENTING THESE OUT
             night_tm_stats.append(
                 round(np.sum(tminus_otb[mask].ADR), 2)
             )  # add segment Rev
@@ -338,116 +291,7 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
         columns=["TM30_Date", "TM15_Date", "TM05_Date"], inplace=True, errors="ignore"
     )
 
-    # for tm in tms:
-    #     # add total hotel stats first
-    #     df_sim[tm + "_RoomsPickup"] = round(
-    #         df_sim["RoomsOTB"] - df_sim[tm + "_RoomsOTB"], 2
-    #     )
-    #     df_sim[tm + "_ADR_Pickup"] = round(
-    #         df_sim["ADR_OTB"] - df_sim[tm + "_ADR_OTB"], 2
-    #     )
-    #     df_sim[tm + "_RevPickup"] = round(df_sim["RevOTB"] - df_sim[tm + "_RevOTB"], 2)
-    #     for seg in segs:
-    #         # and now segmented stats
-    #         df_sim[tm + "_" + seg + "_RoomsPickup"] = round(
-    #             df_sim[seg + "_RoomsOTB"] - df_sim[tm + "_" + seg + "_RoomsOTB"], 2
-    #         )
-    #         df_sim[tm + "_" + seg + "_ADR_Pickup"] = round(
-    #             df_sim[seg + "_ADR_OTB"] - df_sim[tm + "_" + seg + "_ADR_OTB"], 2
-    #         )
-    #         df_sim[tm + "_" + seg + "_RevPickup"] = round(
-    #             df_sim[seg + "_RevOTB"] - df_sim[tm + "_" + seg + "_RevOTB"], 2
-    #         )
-
-    # for tm in tms:
-    #     df_sim[tm + "_NONTRN_RoomsOTB"] = (
-    #         df_sim[tm + "_TRNP_RoomsOTB"]
-    #         + df_sim[tm + "_GRP_RoomsOTB"]
-    #         + df_sim[tm + "_CNT_RoomsOTB"]
-    #     )
-    #     df_sim[tm + "_NONTRN_RevOTB"] = (
-    #         df_sim[tm + "_TRNP_RevOTB"]
-    #         + df_sim[tm + "_GRP_RevOTB"]
-    #         + df_sim[tm + "_CNT_RevOTB"]
-    #     )
-    #     df_sim[tm + "_NONTRN_ADR_OTB"] = round(
-    #         df_sim[tm + "_NONTRN_RevOTB"] / df_sim[tm + "_NONTRN_RoomsOTB"], 2
-    #     )
     return df_sim.copy().fillna(0)
-
-
-def add_stly_cols(df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbose=1):
-    """
-    Adds the following columns to df_sim:
-        - STLY: RoomsOTB, ADR_OTB, TotalRoomsBooked_L30 & L90
-    ____
-    Parameters:
-        - df_sim (pandas.DataFrame, required): simulation DataFrame (future looking)
-        - df_dbd (pandas.DataFrame, required): actual hotel-level data for entire dataset
-    """
-
-    def apply_STLY_stats(row):
-        """This function will be used in add_stly_cols to add STLY stats to df_sim."""
-
-        # pull stly
-        stay_date = row["STLY_Date"]
-        stay_date_str = datetime.datetime.strftime(stay_date, format=DATE_FMT)
-        stly_date = pd.to_datetime(as_of_date) + relativedelta(
-            years=-1, weekday=pd.to_datetime(as_of_date).weekday()
-        )
-        stly_date_str = datetime.datetime.strftime(stly_date, format=DATE_FMT)
-        # if verbose > 0:
-        #     print(
-        #         f"Pulling stats from STLY date {stly_date_str}, stay_date {stay_date_str}..."
-        #     )
-
-        stly_sim = pd.read_pickle(SIM_PICKLE_FP.format(str(hotel_num), stly_date_str))
-        # stly_sim.drop(columns={"Unnamed: 0": "Date"}, inplace=True, errors="ignore")
-        # stly_sim.index = stly_sim.Date
-        stly_stats = []
-        for col in stly_cols:
-            stat = float(stly_sim.loc[stay_date_str, col])
-            stly_stats.append(stat)
-
-        return tuple(stly_stats)
-
-    if verbose > 0:
-        num_models = len(df_sim)
-        print(f"Training {num_models} models to obtain STLY statistics...\n")
-
-    new_col_names = ["STLY_" + col for col in stly_cols]
-    df_sim[new_col_names] = df_sim.apply(
-        apply_STLY_stats, result_type="expand", axis="columns"
-    )
-    # quick way to add ADR columns
-    # stly_segs = [
-    #     ("STLY_RoomsOTB", "STLY_ADR_OTB", ""),
-    #     ("STLY_TRN_RoomsOTB", "STLY_TRN_ADR_OTB", "TRN_"),
-    #     ("STLY_TRNP_RoomsOTB", "STLY_TRNP_ADR_OTB", "TRNP_"),
-    #     ("STLY_GRP_RoomsOTB", "STLY_GRP_ADR_OTB", "GRP_"),
-    #     ("STLY_CNT_RoomsOTB", "STLY_CNT_ADR_OTB", "CNT_"),
-    # ]
-
-    # for Rooms, adr, name in stly_segs:
-    #     df_sim["STLY_" + name + "RoomRev"] = df_sim[Rooms] * df_sim[adr]
-
-    if verbose > 0:
-        print("\nSTLY statistics obtained.\n")
-    return df_sim.copy()
-
-
-def add_pace_cols(df_sim):
-    """
-    Adds pace & pickup pace columns to df_sim.
-
-    Uses lists generated in utils.py.
-    """
-
-    for ty, stly in pace_tuples:
-        df_sim[ty + "_Pace"] = df_sim[ty] - df_sim[stly]
-
-    return df_sim.copy()
-
 
 def generate_simulation(
     df_dbd,
@@ -455,12 +299,8 @@ def generate_simulation(
     hotel_num,
     df_res,
     confusion=True,
-    pull_stly=True,
     verbose=1,
-    pull_lya=True,
-    add_pace=True,
     add_cxl_realized=True,
-    predict_cxl=True,
 ):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
@@ -522,16 +362,6 @@ def generate_simulation(
     if verbose > 0:
         print("Pulling T-Minus OTB statistics...")
     df_sim = add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity)
-
-    if verbose > 0:
-        print("Pulling STLY OTB statistics...")
-    if pull_stly:
-        df_sim = add_stly_cols(
-            df_sim, df_dbd, df_res, hotel_num, as_of_date, capacity, verbose=verbose
-        )
-    if add_pace:
-        print("Calculating pace statistics...")
-        df_sim = add_pace_cols(df_sim)
 
     if verbose > 0:
         print(f"\nSimulation setup complete. As of date: {as_of_date}.\n")

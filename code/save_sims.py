@@ -75,10 +75,7 @@ def save_sim_records(
             hotel_num,
             df_res,
             confusion=False,
-            pull_stly=False,
             verbose=0,
-            pull_lya=False,
-            add_pace=False,
             add_cxl_realized=False,
         )
         df_sim.to_pickle(out_file)
