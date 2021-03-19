@@ -105,6 +105,10 @@ def add_ty_features(df_sim, df_dbd, capacity):
         df_sim.fillna(0, inplace=True)
         return df_sim
     
+    def add_date_cols(df_sim):
+        df_sim["WeekNum"] = df_sim.StayDate.dt.isocalendar().week
+        return df_sim
+    
     def add_tminus(df_sim):
         """
         Adds tminus 5, 15, 30 day pickup statistics. Will pull STLY later on to compare
@@ -173,7 +177,7 @@ def add_ty_features(df_sim, df_dbd, capacity):
         return df_sim
     
     # back to main
-    funcs = [add_aod, add_rem_supply, onehot, add_non_trn, add_lya, add_actuals, add_tminus, add_lya_gap]
+    funcs = [add_aod, add_rem_supply, onehot, add_non_trn, add_lya, add_actuals, add_date_cols, add_tminus, add_lya_gap]
     for func in funcs:
         df_sim = func(df_sim)
 
