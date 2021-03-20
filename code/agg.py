@@ -73,6 +73,18 @@ def add_ty_features(df_sim, df_dbd, capacity):
         )
         return df_sim.copy()
 
+    def fix_weekend(df_sim):
+        is_weekend = (
+            (df_sim.Thu == 0)
+            & (df_sim.Wed == 0)
+            & (df_sim.Tue == 0)
+            & (df_sim.Mon == 0)
+            & (df_sim.Sun == 0)
+        )
+        df_sim["WE"] = is_weekend
+        df_sim.drop(columns="WD", inplace=True)  # for colinearity
+        return df_sim
+
     def onehot(df_sim):
         ohe_dow = pd.get_dummies(df_sim.DOW, drop_first=True)
         dow_ohe_cols = list(ohe_dow.columns)
@@ -198,6 +210,7 @@ def add_ty_features(df_sim, df_dbd, capacity):
     funcs = [
         add_aod,
         add_rem_supply,
+        fix_weekend,
         onehot,
         add_non_trn,
         add_lya,
@@ -264,8 +277,8 @@ def prep_demand_features(hotel_num):
     df_sim = combine_files(hotel_num, SIM_AOD)
     df_sim = add_ty_features(df_sim, df_dbd, capacity)
     df_sim = merge_stly(df_sim)
-    # drop unnecessary columns
 
+    # drop unnecessary columns
     df_sim.drop(columns=trash_can, inplace=True)
     df_sim["WeekNum"] = df_sim["WeekNum"].astype(int)
     df_sim.fillna(0, inplace=True)
