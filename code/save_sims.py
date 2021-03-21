@@ -45,7 +45,7 @@ import datetime
 from sim import generate_simulation
 import time
 
-FOLDER = "./sims/pickle/"
+FOLDER = "./sims2/"
 START = datetime.date(2015, 8, 1)
 STOP = datetime.date(2017, 8, 31)
 DATE_FMT = "%Y-%m-%d"
@@ -76,7 +76,6 @@ def save_sim_records(
             df_res,
             confusion=False,
             verbose=0,
-            add_cxl_realized=False,
         )
         df_sim.to_pickle(out_file)
         counter += 1

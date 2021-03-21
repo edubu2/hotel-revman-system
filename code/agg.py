@@ -17,7 +17,7 @@ from agg_utils import stly_cols_agg, ly_cols_agg, drop_cols_agg, pace_tuples, tr
 
 DATE_FMT = "%Y-%m-%d"
 SIM_AOD = dt.date(2017, 8, 1)  # simulation as-of date
-FOLDER = "./sims/pickle/"
+FOLDER = "./sims2/"
 H1_CAPACITY = 187
 H2_CAPACITY = 226
 H1_DBD = pd.read_pickle("./pickle/h1_dbd.pick")
@@ -65,6 +65,31 @@ def add_ty_features(df_sim, df_dbd, capacity):
             columns={"Date": "StayDate", "STLY_Date": "STLY_StayDate"}, inplace=True
         )
 
+        return df_sim.copy()
+
+    def onehot(df_sim):
+        ohe_dow = pd.get_dummies(df_sim["DayOfWeek"], drop_first=True)
+        dow_ohe_cols = list(ohe_dow.columns)
+        df_sim[dow_ohe_cols] = ohe_dow
+
+        return df_sim.copy()
+
+    def add_date_info(df_sim):
+        df_sim["DayOfWeek"] = df_sim.StayDate.map(
+            lambda x: dt.datetime.strftime(x, format="%a")
+        )
+        # add one-hot-encoded date columns
+        df_sim = onehot(df_sim)
+        is_weekend = (
+            (df_sim.Mon == 0)
+            & (df_sim.Wed == 0)
+            & (df_sim.Tue == 0)
+            & (df_sim.Mon == 0)
+            & (df_sim.Sun == 0)
+            & (df_sim.Thu == 0)
+        )
+        df_sim["WE"] = is_weekend
+        df_sim["WeekNum"] = df_sim.StayDate.dt.isocalendar().week
         return df_sim
 
     def add_rem_supply(df_sim):
@@ -73,26 +98,7 @@ def add_ty_features(df_sim, df_dbd, capacity):
         )
         return df_sim.copy()
 
-    def fix_weekend(df_sim):
-        is_weekend = (
-            (df_sim.Thu == 0)
-            & (df_sim.Wed == 0)
-            & (df_sim.Tue == 0)
-            & (df_sim.Mon == 0)
-            & (df_sim.Sun == 0)
-        )
-        df_sim["WE"] = is_weekend
-        df_sim.drop(columns="WD", inplace=True)  # for colinearity
-        return df_sim
-
-    def onehot(df_sim):
-        ohe_dow = pd.get_dummies(df_sim.DOW, drop_first=True)
-        dow_ohe_cols = list(ohe_dow.columns)
-        df_sim[dow_ohe_cols] = ohe_dow
-
-        return df_sim.copy()
-
-    def add_non_trn(df_sim):
+    def add_non_TRN(df_sim):
         df_sim["NONTRN_RoomsOTB"] = df_sim.RoomsOTB - df_sim.TRN_RoomsOTB
         df_sim["NONTRN_RevOTB"] = round(df_sim["RevOTB"] - df_sim["TRN_RevOTB"], 2)
         df_sim["NONTRN_ADR_OTB"] = round(
@@ -119,7 +125,18 @@ def add_ty_features(df_sim, df_dbd, capacity):
         return df_sim.copy()
 
     def add_actuals(df_sim):
-        actual_cols = ["RoomsSold", "ADR", "RoomRev", "NumCancels"]
+        actual_cols = [
+            "RoomsSold",
+            "ADR",
+            "RoomRev",
+            "TRN_RoomsSold",
+            "TRN_ADR",
+            "TRN_RoomRev",
+            "NumCancels",
+        ]
+        # first need TRN_ADR
+        df_sim["ADR_OTB"] = round(df_sim["RevOTB"] / df_sim["RoomsOTB"], 2)
+        df_sim["TRN_ADR_OTB"] = round(df_sim["TRN_RevOTB"] / df_sim["TRN_RoomsOTB"], 2)
 
         def apply_ty_actuals(row):
             date = row["StayDate"]
@@ -131,22 +148,42 @@ def add_ty_features(df_sim, df_dbd, capacity):
         df_sim[new_actual_cols] = df_sim[["StayDate"]].apply(
             apply_ty_actuals, axis=1, result_type="expand"
         )
-        df_sim.fillna(0, inplace=True)
-        return df_sim
 
-    def add_date_cols(df_sim):
-        df_sim["WeekNum"] = df_sim.StayDate.dt.isocalendar().week
-        return df_sim.copy()
+        # add actual pickup
+        df_sim["ACTUAL_RoomsPickup"] = df_sim["ACTUAL_RoomsSold"] - df_sim["RoomsOTB"]
+        df_sim["ACTUAL_ADR_Pickup"] = df_sim["ACTUAL_ADR"] - df_sim["ADR_OTB"]
+        df_sim["ACTUAL_RevPickup"] = df_sim["ACTUAL_RoomRev"] - df_sim["RevOTB"]
+
+        df_sim["ACTUAL_TRN_RoomsPickup"] = (
+            df_sim["ACTUAL_TRN_RoomsSold"] - df_sim["TRN_RoomsOTB"]
+        )
+        df_sim["ACTUAL_TRN_ADR_Pickup"] = (
+            df_sim["ACTUAL_TRN_ADR"] - df_sim["TRN_ADR_OTB"]
+        )
+        df_sim["ACTUAL_TRN_RevPickup"] = (
+            df_sim["ACTUAL_TRN_RoomRev"] - df_sim["TRN_RevOTB"]
+        )
+        df_sim["ACTUAL_NONTRN_RoomsPickup"] = (
+            df_sim["ACTUAL_RoomsPickup"] - df_sim["ACTUAL_TRN_RoomsPickup"]
+        )
+        df_sim["ACTUAL_NONTRN_ADR_Pickup"] = (
+            df_sim["ACTUAL_ADR_Pickup"] - df_sim["ACTUAL_TRN_ADR_Pickup"]
+        )
+        df_sim["ACTUAL_NONTRN_RevPickup"] = (
+            df_sim["ACTUAL_RevPickup"] - df_sim["ACTUAL_TRN_RevPickup"]
+        )
+
+        df_sim.fillna(0, inplace=True)
+
+        return df_sim
 
     def add_tminus(df_sim):
         """
         Adds tminus 5, 15, 30 day pickup statistics. Will pull STLY later on to compare
         recent booking vs last year.
         """
-        # first need TRN_ADR
-        df_sim["TRN_ADR_OTB"] = round(df_sim["TRN_RevOTB"] / df_sim["TRN_RoomsOTB"])
 
-        # loop thru tminus windows (for total hotel & trn) & count bookings
+        # loop thru tminus windows (for total hotel & TRN) & count bookings
         tms = ["TM30_", "TM15_", "TM05_"]
         segs = ["", "TRN_"]  # "" for total hotel
 
@@ -177,47 +214,17 @@ def add_ty_features(df_sim, df_dbd, capacity):
             df_sim[tm + "NONTRN_ADR_OTB"] = round(
                 df_sim[tm + "NONTRN_RevOTB"] / df_sim[tm + "NONTRN_RoomsOTB"], 2
             )
-            # add TM_NONTRN_OTB Pickup
-            df_sim[tm + "NONTRN_RoomsPickup"] = (
-                df_sim["NONTRN_RoomsOTB"] - df_sim[tm + "NONTRN_RoomsOTB"]
-            )
-            df_sim[tm + "NONTRN_RevPickup"] = round(
-                df_sim["NONTRN_RevOTB"] - df_sim[tm + "NONTRN_RevOTB"], 2
-            )
-            df_sim[tm + "NONTRN_ADR_Pickup"] = (
-                df_sim["NONTRN_ADR_OTB"] - df_sim[tm + "NONTRN_ADR_OTB"]
-            )
         return df_sim.copy()
-
-    def add_lya_gap(df_sim):
-        # must be done AFTER NONTRN cols added
-        df_sim["RoomsGapToLYA"] = df_sim.LYA_RoomsSold - df_sim.RoomsOTB
-        df_sim["RevGapToLYA"] = df_sim.LYA_RoomRev - df_sim.RevOTB
-        df_sim["ADR_GapToLYA"] = df_sim.LYA_ADR - df_sim.ADR_OTB
-        df_sim["TRN_RoomsGapToLYA"] = df_sim.LYA_TRN_RoomsSold - df_sim.TRN_RoomsOTB
-        df_sim["TRN_RevGapToLYA"] = df_sim.LYA_TRN_RoomRev - df_sim.TRN_RevOTB
-        df_sim["TRN_ADR_GapToLYA"] = df_sim.LYA_TRN_ADR - df_sim.TRN_ADR_OTB
-        df_sim["NONTRN_RoomsGapToLYA"] = (
-            df_sim["RoomsGapToLYA"] - df_sim["TRN_RoomsGapToLYA"]
-        )
-        df_sim["NONTRN_RevGapToLYA"] = df_sim["RevGapToLYA"] - df_sim["TRN_RevGapToLYA"]
-        df_sim["NONTRN_ADR_GapToLYA"] = (
-            df_sim["ADR_GapToLYA"] - df_sim["TRN_ADR_GapToLYA"]
-        )
-        return df_sim
 
     # back to main
     funcs = [
         add_aod,
         add_rem_supply,
-        fix_weekend,
-        onehot,
-        add_non_trn,
+        add_non_TRN,
         add_lya,
         add_actuals,
-        add_date_cols,
+        add_date_info,
         add_tminus,
-        add_lya_gap,
     ]
     for func in funcs:
         df_sim = func(df_sim)

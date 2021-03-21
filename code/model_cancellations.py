@@ -72,7 +72,8 @@ def split_reservations(df_res, as_of_date, features, verbose=1):
     test_mask = (df_res.ResMadeDate <= as_of_date) & (  # reservations made before AOD
         df_res.CheckoutDate > as_of_date
     )  # checking out after AOD
-    df_test = df_res[test_mask]
+    df_test = get_otb_res(df_res, as_of_date)
+    df_test = df_test[test_mask]
 
     X_train = df_train[features].copy()
     X_test = df_test[features].copy()
@@ -166,8 +167,8 @@ def predict_cancellations(df_res, as_of_date, hotel_num, confusion=True, verbose
     )
 
     X_test[["will_come_proba", "cxl_proba"]] = X_test_cxl_probas
-    X_test["will_cancel"] = X_test.cxl_proba >= thresh
-    df_res["will_cancel"] = X_test["will_cancel"]
+    preds = X_test.cxl_proba >= thresh
+    df_res = df_res.append(preds)
 
     # df_otb = df_res.loc[list(X_test.index)].copy()  # PROBLEM HERE
     # df_res[["will_come_proba", "cxl_proba"]] = X_test_cxl_probas
@@ -175,4 +176,4 @@ def predict_cancellations(df_res, as_of_date, hotel_num, confusion=True, verbose
     # df_otb["will_cancel"] = df_otb.cxl_proba >= thresh
     # df_otb["IsCanceled"] = y_test.to
     # return df_otb
-    return df_res.copy()
+    return df_res.copy(), model

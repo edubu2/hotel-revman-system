@@ -21,16 +21,16 @@ import datetime
 import pandas as pd
 import numpy as np
 from dateutil.relativedelta import relativedelta
-from sim_utils import stly_cols, ly_cols, tm_cols, pace_tuples
+from sim_utils import ly_cols, tm_cols
 from model_cancellations import get_otb_res, predict_cancellations, get_future_res
 
 H1_CAPACITY = 187
 H2_CAPACITY = 226
 DATE_FMT = "%Y-%m-%d"
-SIM_PICKLE_FP = "./sims/pickleh{}_sim_{}.pick"
+SIM_PICKLE_FP = "./sims2/pickleh{}_sim_{}.pick"
 
 
-def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
+def setup_sim(df_res, hotel_num, as_of_date="2017-08-01"):
     """
     Takes reservations and returns a DataFrame that can be used
     as a revenue management simulation.
@@ -47,7 +47,6 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
           (predicted). Default      value is "p".
     """
 
-    df_dates = df_otb.copy()
     aod_dt = pd.to_datetime(as_of_date, format=DATE_FMT)
     date = pd.to_datetime(as_of_date, format=DATE_FMT)
     if date + pd.DateOffset(31) > datetime.date(2017, 8, 31):
@@ -55,29 +54,30 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
     else:
         end_date = date + pd.DateOffset(31)
     delta = datetime.timedelta(days=1)
-    max_los = int(df_dates["LOS"].max())
 
     nightly_stats = {}
+    future_res, model = predict_cancellations(
+        df_res, as_of_date, hotel_num, confusion=False, verbose=0
+    )
 
     while date <= end_date:
 
         stay_date_str = datetime.datetime.strftime(date, format=DATE_FMT)
-        # initialize date dict, which will go into nightly_stats as:
-        # {'date': {'stat': 'val', 'stat', 'val'}}
-        night_df = get_otb_res(df_res, as_of_date)
 
-        mask = (night_df.ArrivalDate <= stay_date_str) & (
-            night_df.CheckoutDate > stay_date_str
+        mask = (future_res.ArrivalDate <= stay_date_str) & (
+            future_res.CheckoutDate > stay_date_str
         )
-
-        night_df = night_df[mask].copy()
-
-        date_stats = aggregate_reservations(night_df, stay_date_str)
+        night_df = future_res[mask].copy()
+        date_stats = aggregate_reservations(night_df)
         nightly_stats[stay_date_str] = dict(date_stats)
         date += delta
 
     df_sim = pd.DataFrame(nightly_stats).transpose().fillna(0)
     df_sim.index = pd.to_datetime(df_sim.index, format=DATE_FMT)
+    return df_sim
+
+
+def fixup_sim(df_sim):
     df_sim["Date"] = pd.to_datetime(df_sim.index, format=DATE_FMT)
     df_sim["TM05_Date"] = df_sim.Date - pd.DateOffset(5)
     df_sim["TM15_Date"] = df_sim.Date - pd.DateOffset(15)
@@ -87,13 +87,6 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
     dow = pd.to_datetime(df_sim.index, format=DATE_FMT)
     dow = dow.strftime("%a")
     df_sim.insert(0, "DOW", dow)
-    df_sim["WE"] = (df_sim.DOW == "Fri") | (df_sim.DOW == "Sat")
-    df_sim["WD"] = df_sim.WE is False
-
-    # one-hot-encode DOW column
-    # ohe_dow = pd.get_dummies(df_sim.DOW, drop_first=True)
-    # dow_ohe_cols = list(ohe_dow.columns)
-    # df_sim[dow_ohe_cols] = ohe_dow
 
     # add STLY date
     stly_lambda = lambda x: pd.to_datetime(x) + relativedelta(
@@ -107,13 +100,17 @@ def setup_sim(df_otb, df_res, as_of_date="2017-08-01", end_date=False):
     return df_sim.copy()
 
 
-def aggregate_reservations(night_df, date_string):
+def aggregate_reservations(night_df):
     """
     Takes a reservations DataFrame containing all reservations for a certain day and returns a dictionary of it's contents.
     ______
     Parameters:
         - night_df (pd.DataFrame, required): All OTB reservations that are touching as_of_date.
         - date_string (required, DATE_FMT)
+
+    RETURNS
+    -------
+        - A dictionary, structured as: {<stay_date>: {'stat': 'val', 'stat', 'val'}, ...}
     """
     date_stats = defaultdict(int)
     date_stats["RoomsOTB"] += len(night_df)
@@ -143,62 +140,6 @@ def aggregate_reservations(night_df, date_string):
             date_stats[code + "_CxlForecast"] += 0
 
     return date_stats
-
-
-def add_other_market_seg(df_sim):
-    """
-    To simplify complexity, combine Grp, Trnp, Cnt cols into one 'NONTRN_'.
-    Takes and returns a modified df_sim.
-    """
-    df_sim["NONTRN_RoomsOTB"] = (
-        df_sim.TRNP_RoomsOTB + df_sim.GRP_RoomsOTB + df_sim.CNT_RoomsOTB
-    )
-    df_sim["NONTRN_RevOTB"] = df_sim.TRNP_RevOTB + df_sim.GRP_RevOTB + df_sim.CNT_RevOTB
-    df_sim["NONTRN_ADR_OTB"] = round(df_sim.NONTRN_RevOTB / df_sim.NONTRN_RoomsOTB, 2)
-
-    return df_sim.copy()
-
-
-def add_sim_cols(df_sim, df_dbd, capacity, pull_lya=True):
-    """
-    Adds several columns to df_sim, including:
-        - 'Occ' (occupancy)
-        - 'RevPAR' (revenue per available room)
-        - 'ADR' (by segment)
-        - 'NONTRN_' stats (non-transient)
-        - 'RemSupply' (RoomsOTB - ProjectedCXLs)
-        - 'DOW' (day-of-week)
-        - 'WD' (weekday - binary)
-        - 'WE' (weekend - binary)
-        - 'STLY_Date' (datetime DATE_FMT)
-        - 'LYA_' cols (last year actual RoomsSold, ADR, Rev, CXL'd)
-        - 'GapToLYA_' cols
-        - 'Actual_' cols (including pickup)
-    _____
-    Parameters:
-        - df_sim
-        - df_dbd
-        - capacity (int, required): number of rooms in the hotel
-        - pull_lya (set to False when using save_sims.py)
-
-    """
-    df_sim["ADR_OTB"] = round(df_sim.RevOTB / df_sim.RoomsOTB, 2)
-
-    seg_codes = ["TRN", "NONTRN", "TRNP", "GRP", "CNT"]
-    if pull_lya:
-
-        def apply_ly_cols(row):
-            stly_date = row["STLY_Date"]
-            stly_date_str = datetime.datetime.strftime(stly_date, format=DATE_FMT)
-
-            df_lya = list(df_dbd.loc[stly_date_str, ly_cols])
-            return tuple(df_lya)
-
-        ly_new_cols = ["LYA_" + col for col in ly_cols]
-        df_sim[ly_new_cols] = df_sim.apply(apply_ly_cols, axis=1, result_type="expand")
-
-        df_sim.fillna(0, inplace=True)
-    return df_sim.copy()
 
 
 def add_cxl_cols(df_sim, df_res, as_of_date):
@@ -246,13 +187,12 @@ def add_pricing(df_sim, df_res):
     return df_sim.copy()
 
 
-def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
+def add_tminus_cols(df_sim, df_res):
     """
     This function adds booking statistics for a given date compared to the same date LY.
     """
 
     def apply_tminus_stats(row, tm_date_col):
-        night = row["Date"]
         night_ds = datetime.datetime.strftime(row["Date"], format=DATE_FMT)
         tminus_date = row[tm_date_col]
         tminus_ds = datetime.datetime.strftime(tminus_date, format=DATE_FMT)
@@ -285,13 +225,12 @@ def add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity):
             axis="columns",
         )
 
-    tms = ["TM30", "TM15", "TM05"]
-    segs = ["TRN", "TRNP", "GRP", "CNT"]
     df_sim.drop(
         columns=["TM30_Date", "TM15_Date", "TM05_Date"], inplace=True, errors="ignore"
     )
 
     return df_sim.copy().fillna(0)
+
 
 def generate_simulation(
     df_dbd,
@@ -300,7 +239,6 @@ def generate_simulation(
     df_res,
     confusion=True,
     verbose=1,
-    add_cxl_realized=True,
 ):
     """
     Takes reservations and returns a DataFrame that can be used as a revenue management simulation.
@@ -326,18 +264,6 @@ def generate_simulation(
     assert aod_dt >= min_dt, ValueError(
         "as_of_date must be between 7/1/16 and 8/30/17."
     )
-    # df_otb = get_otb_res(df_res, as_of_date)
-    if predict_cxl:
-        df_otb = predict_cancellations(
-            df_res,
-            as_of_date,
-            hotel_num,
-            confusion=confusion,
-            verbose=verbose,
-        )
-
-    else:
-        df_otb = get_future_res(df_res, as_of_date)
 
     if hotel_num == 1:
         capacity = H1_CAPACITY
@@ -345,15 +271,9 @@ def generate_simulation(
         capacity = H2_CAPACITY
     if verbose > 0:
         print("Setting up simulation...")
-    df_sim = setup_sim(
-        df_otb,
-        df_res,
-        as_of_date,
-    )
-    # df_sim = add_other_market_seg(df_sim)
-    df_sim = add_sim_cols(df_sim, df_dbd, capacity, pull_lya=pull_lya)
-    if add_cxl_realized:
-        df_sim = add_cxl_cols(df_sim, df_res, as_of_date)
+    df_sim = setup_sim(df_res, hotel_num, as_of_date)
+    df_sim = fixup_sim(df_sim)
+    df_sim = add_cxl_cols(df_sim, df_res, as_of_date)
 
     if verbose > 0:
         print("Estimating prices...")
@@ -361,7 +281,7 @@ def generate_simulation(
 
     if verbose > 0:
         print("Pulling T-Minus OTB statistics...")
-    df_sim = add_tminus_cols(df_sim, df_dbd, df_res, hotel_num, capacity)
+    df_sim = add_tminus_cols(df_sim, df_res)
 
     if verbose > 0:
         print(f"\nSimulation setup complete. As of date: {as_of_date}.\n")
