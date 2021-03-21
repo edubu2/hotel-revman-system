@@ -47,7 +47,6 @@ def setup_sim(df_res, hotel_num, as_of_date="2017-08-01"):
           (predicted). Default      value is "p".
     """
 
-    aod_dt = pd.to_datetime(as_of_date, format=DATE_FMT)
     date = pd.to_datetime(as_of_date, format=DATE_FMT)
     if date + pd.DateOffset(31) > datetime.date(2017, 8, 31):
         end_date = datetime.date(2017, 8, 31)
@@ -56,9 +55,11 @@ def setup_sim(df_res, hotel_num, as_of_date="2017-08-01"):
     delta = datetime.timedelta(days=1)
 
     nightly_stats = {}
-    future_res, model = predict_cancellations(
+    future_res = predict_cancellations(
         df_res, as_of_date, hotel_num, confusion=False, verbose=0
     )
+
+    future_res = get_otb_res(future_res, as_of_date).copy()
 
     while date <= end_date:
 
@@ -77,7 +78,7 @@ def setup_sim(df_res, hotel_num, as_of_date="2017-08-01"):
     return df_sim
 
 
-def fixup_sim(df_sim):
+def fixup_sim(df_sim, as_of_date):
     df_sim["Date"] = pd.to_datetime(df_sim.index, format=DATE_FMT)
     df_sim["TM05_Date"] = df_sim.Date - pd.DateOffset(5)
     df_sim["TM15_Date"] = df_sim.Date - pd.DateOffset(15)
@@ -94,7 +95,7 @@ def fixup_sim(df_sim):
     )
 
     df_sim["STLY_Date"] = pd.to_datetime(df_sim.index.map(stly_lambda), format=DATE_FMT)
-
+    aod_dt = pd.to_datetime(as_of_date, format=DATE_FMT)
     df_sim["DaysUntilArrival"] = (df_sim.Date - aod_dt).dt.days
 
     return df_sim.copy()
@@ -272,7 +273,7 @@ def generate_simulation(
     if verbose > 0:
         print("Setting up simulation...")
     df_sim = setup_sim(df_res, hotel_num, as_of_date)
-    df_sim = fixup_sim(df_sim)
+    df_sim = fixup_sim(df_sim, as_of_date)
     df_sim = add_cxl_cols(df_sim, df_res, as_of_date)
 
     if verbose > 0:

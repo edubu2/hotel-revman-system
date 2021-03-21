@@ -97,17 +97,10 @@ def make_confusion_matrix(
     labels = np.asarray(labels).reshape(2, 2)
 
     label_font = {
-        "family": "Arial",
+        # "family": "Arial",
         "color": label_color,
         "weight": "bold",
         "size": 17,
-    }
-
-    title_font = {
-        "family": "Arial",
-        "color": label_color,
-        "weight": "bold",
-        "size": 24,
     }
 
     sns.heatmap(
