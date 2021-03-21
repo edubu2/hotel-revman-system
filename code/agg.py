@@ -268,12 +268,19 @@ def cleanup_sim(df_sim):
     return df_sim
 
 
-def prep_demand_features(hotel_num, csv_out=None):
+def prep_demand_features(hotel_num, read_file=None, csv_out=None):
     """
     Wraps several functions that read OTB historical csv files into a DataFrame (df_sim)
     and adds relevant features that will be used to model demand & recommend pricing.
 
-    Optional: Save resulting data as csv with given filename.
+    Parameters:
+        - hotel_num (int, required): 1 or 2
+        - read_file (str, optional): if one file contains all OTB data for hotel, pass it here.
+            - otherwise, otb files will be pulled from "sims2/" directory.
+        - csv_out (str, optional): Save resulting data as csv with given filepath.
+
+    Returns
+        - df_sim
     """
     assert hotel_num in (1, 2), ValueError("hotel_num must be either 1 or 2 (int).")
     if hotel_num == 1:
@@ -283,7 +290,12 @@ def prep_demand_features(hotel_num, csv_out=None):
         capacity = H2_CAPACITY
         df_dbd = H2_DBD
 
-    df_sim = combine_files(hotel_num, SIM_AOD)
+    if read_file is None:
+        df_sim = combine_files(hotel_num, SIM_AOD)
+    else:
+        assert os.path.exists(read_file), FileNotFoundError(f"'{read_file}' not found.")
+        df_sim = pd.read_csv(read_file)
+        assert len(df_sim) > 7500, ValueError(f"Not enough data in '{read_file}'")
     df_sim = extract_features(df_sim, df_dbd, capacity)
     df_sim = merge_stly(df_sim)
     df_sim = cleanup_sim(df_sim)
