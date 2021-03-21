@@ -45,9 +45,9 @@ import datetime
 from sim import generate_simulation
 import time
 
-FOLDER = "./sims2/"
+FOLDER = "../data/"
 START = datetime.date(2015, 8, 1)
-STOP = datetime.date(2017, 8, 31)
+STOP = datetime.date(2017, 8, 1)
 DATE_FMT = "%Y-%m-%d"
 H1_RES = pd.read_pickle("pickle/h1_res.pick")
 H2_RES = pd.read_pickle("pickle/h2_res.pick")
@@ -84,7 +84,7 @@ def save_sim_records(
         # counter += 1
         print(f"Completed as-of date {as_of_date}.")
 
-    out_file = str(FOLDER + f"h{hotel_num}_all_sims31.pick")
+    out_file = str(FOLDER + f"h{hotel_num}_all_sims31.csv")
     df_all_sims.to_csv(out_file)
     return df_all_sims
 

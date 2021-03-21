@@ -2,7 +2,7 @@ stly_cols_agg = [
     "id",
     "AsOfDate",
     "StayDate",
-    "DaysUntilArrival",  # to confirm results - remove once merge working
+    # "DaysUntilArrival",  # to confirm results - remove once merge working
     "RoomsOTB",
     "ADR_OTB",
     "RevOTB",
