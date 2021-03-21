@@ -45,7 +45,7 @@ import datetime
 from sim import generate_simulation
 import time
 
-FOLDER = "./sims/pickle/"
+FOLDER = "./sims2/"
 START = datetime.date(2015, 8, 1)
 STOP = datetime.date(2017, 8, 31)
 DATE_FMT = "%Y-%m-%d"
@@ -64,11 +64,13 @@ def save_sim_records(
         for x in range((STOP - START).days + 1)
     ]
 
-    counter = 1
+    df_all_sims = pd.DataFrame()
+
+    # counter = 1
     for as_of_date in all_dates:
         # if counter % 100 == 0:
         #     time.sleep(60)  # save cpu (comment out for VMs)
-        out_file = str(FOLDER + f"h{str(hotel_num)}_sim_{as_of_date}.pick")
+
         df_sim = generate_simulation(
             df_dbd,
             as_of_date,
@@ -76,13 +78,15 @@ def save_sim_records(
             df_res,
             confusion=False,
             verbose=0,
-            add_cxl_realized=False,
         )
-        df_sim.to_pickle(out_file)
-        counter += 1
-        print(f"Saved file {out_file}.")
+        df_all_sims.append(df_sim)
+        # df_sim.to_pickle(out_file)
+        # counter += 1
+        print(f"Completed as-of date {as_of_date}.")
 
-    return
+    out_file = str(FOLDER + f"h{hotel_num}_all_sims31.pick")
+    df_all_sims.to_csv(out_file)
+    return df_all_sims
 
 
 def main(h1_dbd, h1_res, h2_dbd, h2_res):

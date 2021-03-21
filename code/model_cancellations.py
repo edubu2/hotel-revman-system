@@ -20,7 +20,7 @@ def get_future_res(df_res, as_of_date):
         df_res.CheckoutDate > as_of_date
     )  # checking out after AOD
 
-    return df_res.loc[mask].copy()
+    return df_res.loc[otb_mask].copy()
 
 
 def get_otb_res(df_res, as_of_date):
@@ -33,8 +33,6 @@ def get_otb_res(df_res, as_of_date):
         - as_of_date (required, str): Date of simulation.
             - e.g. "2017-08-15"
     """
-    aod = pd.to_datetime(as_of_date)
-
     otb_mask = (
         (df_res.ResMadeDate <= as_of_date)  # reservations made before AOD
         & (df_res.CheckoutDate > as_of_date)  # checking out after AOD
@@ -68,11 +66,9 @@ def split_reservations(df_res, as_of_date, features, verbose=1):
     # train: all reservations that have already checked out
     # test: all OTB reservations
     train_mask = df_res["CheckoutDate"] <= as_of_date
-    df_train = df_res[train_mask]
-    test_mask = (df_res.ResMadeDate <= as_of_date) & (  # reservations made before AOD
-        df_res.CheckoutDate > as_of_date
-    )  # checking out after AOD
-    df_test = df_res[test_mask]
+    df_train = df_res[train_mask].copy()
+
+    df_test = get_otb_res(df_res, as_of_date)
 
     X_train = df_train[features].copy()
     X_test = df_test[features].copy()
@@ -162,12 +158,12 @@ def predict_cancellations(df_res, as_of_date, hotel_num, confusion=True, verbose
     X_test_cxl_probas = model.predict_proba(X_test)
 
     thresh = optimize_prob_threshold(
-        model, X_test=X_test, y_test=y_test, confusion=confusion, beta=0.5
+        model, X_test=X_test, y_test=y_test, confusion=confusion, beta=1
     )
 
     X_test[["will_come_proba", "cxl_proba"]] = X_test_cxl_probas
-    X_test["will_cancel"] = X_test.cxl_proba >= thresh
-    df_res["will_cancel"] = X_test["will_cancel"]
+    df_res["cxl_proba"] = X_test["cxl_proba"]
+    df_res["will_cancel"] = df_res.cxl_proba >= thresh
 
     # df_otb = df_res.loc[list(X_test.index)].copy()  # PROBLEM HERE
     # df_res[["will_come_proba", "cxl_proba"]] = X_test_cxl_probas
@@ -175,4 +171,4 @@ def predict_cancellations(df_res, as_of_date, hotel_num, confusion=True, verbose
     # df_otb["will_cancel"] = df_otb.cxl_proba >= thresh
     # df_otb["IsCanceled"] = y_test.to
     # return df_otb
-    return df_res.copy()
+    return df_res
