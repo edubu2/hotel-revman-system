@@ -28,7 +28,9 @@ def combine_files(hotel_num, sim_aod):
     """Combines all required files in FOLDER into one DataFrame."""
     sim_start = SIM_AOD - pd.DateOffset(365 * 2)
     lam_include = (
-        lambda x: x[:2] == "h" + str(hotel_num) and pd.to_datetime(x[7:17]) >= sim_start
+        lambda x: x[:9] == "h" + str(hotel_num) + "_sim_20"
+        and pd.to_datetime(x[7:17]) >= sim_start
+        and x[7] == "2"
     )
     otb_files = [f for f in os.listdir(FOLDER) if lam_include(f)]
     otb_files.sort()
@@ -46,7 +48,7 @@ def extract_features(df_sim, df_dbd, capacity):
         """Adds "AsOfDate" and "STLY_AsOfDate" columns."""
 
         def apply_aod(row):
-            stay_date = pd.to_datetime(row["Date"])
+            stay_date = row["Date"]
             stly_stay_date = pd.to_datetime(row["STLY_Date"])
             n_days_b4 = int(row["DaysUntilArrival"])
             as_of_date = pd.to_datetime(
@@ -261,13 +263,17 @@ def cleanup_sim(df_sim):
     df_sim["Realized_Cxls_STLY"] = df_sim["Realized_Cxls_STLY"].astype(float)
     df_sim["DaysUntilArrival"] = df_sim["DaysUntilArrival"].astype(float)
     df_sim["Pace_RemSupply"] = df_sim["Pace_RemSupply"].astype(float)
+    df_sim["SellingPrice"] = round(df_sim["SellingPrice"], 2)
+    df_sim["Pace_SellingPrice"] = round(df_sim["Pace_SellingPrice"], 2)
     return df_sim
 
 
-def prep_demand_features(hotel_num):
+def prep_demand_features(hotel_num, csv_out=None):
     """
     Wraps several functions that read OTB historical csv files into a DataFrame (df_sim)
-    and adds relevant features that will be used to model demand.
+    and adds relevant features that will be used to model demand & recommend pricing.
+
+    Optional: Save resulting data as csv with given filename.
     """
     assert hotel_num in (1, 2), ValueError("hotel_num must be either 1 or 2 (int).")
     if hotel_num == 1:
@@ -285,4 +291,6 @@ def prep_demand_features(hotel_num):
     # drop unnecessary columns
     df_sim.drop(columns=trash_can, inplace=True)
     df_sim.fillna(0, inplace=True)
+    if csv_out is not None:
+        df_sim.to_csv(csv_out)
     return df_sim
