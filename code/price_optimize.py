@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 from demand_features import rf_cols
 
@@ -34,9 +34,7 @@ def splits(df_sim, as_of_date):
     return X_train, y_train, X_test, y_test
 
 
-def train_model(df_sim, as_of_date="2017-08-01"):
-
-    X_train, y_train, X_test, y_test = splits(df_sim, as_of_date)
+def train_model(df_sim, as_of_date, X_train, y_train, X_test, y_test):
 
     rfm = RandomForestRegressor(
         n_estimators=150,
@@ -56,63 +54,104 @@ def train_model(df_sim, as_of_date="2017-08-01"):
     df_sim["ACTUAL_TRN_RoomsPickup"] = X_test["ACTUAL_TRN_RoomsPickup"]
     mask = df_sim["AsOfDate"] == as_of_date
     df_pricing = df_sim[mask].copy()
-    df_pricing.index = pd.to_datetime(pd.Series(df_pricing.StayDate), format=DATE_FMT)
-    return df_pricing, rfm
+    return df_pricing, rfm, preds
 
 
-def calculate_rev_at_price(price, df_sim, model, stay_date):
+def calculate_rev_at_price(price, df_sim, model, df_index):
+    """
+    Calculates transient room revenue at predicted selling prices."""
     df = df_sim.copy()
-    df.loc[stay_date, "SellingPrice"] = price
-    X = df.loc[stay_date, rf_cols].to_numpy()
+    df.loc[df_index, "SellingPrice"] = price
+    X = df.loc[df_index, rf_cols].to_numpy()
     trn_rooms_to_book = model.predict([X])[0]
-    return trn_rooms_to_book * price
+    resulting_rev = round(trn_rooms_to_book * price, 2)
+    return resulting_rev
 
 
-def optimize_price(df_sim, as_of_date):
+def get_optimal_prices(df_pricing, as_of_date, model):
     """
     Models demand at current prices & stores resulting TRN RoomsBooked & Rev.
 
     Then adjusts prices by 5% increments in both directions, up to 25%.
     """
-    df_pricing, model = train_model(df_sim, as_of_date)
-    stay_dates = list(pd.to_datetime(pd.Series(df_pricing.index), format=DATE_FMT))
+    # optimize_price func
+    indices = list(df_pricing.index)
     price_adjustments = np.delete(np.arange(-0.25, 0.30, 0.05).round(2), 5)
     optimal_prices = []
-    for stay_date in stay_dates:
-        sd = dt.datetime.strftime(stay_date, format=DATE_FMT)
-        original_rate = round(df_pricing.loc[sd, "SellingPrice"], 2)
-        date_X = df_pricing.loc[sd, rf_cols].to_numpy()
+    for i in indices:
+        #     sd = dt.datetime.strftime(stay_date, format=DATE_FMT)
+        original_rate = round(df_pricing.loc[i, "SellingPrice"], 2)
+        date_X = df_pricing.loc[i, rf_cols].to_numpy()
         pred = model.predict([date_X])[0]
-        rev = pred * original_rate
-        optimal_rate = (original_rate, rev)
+        original_rev = pred * original_rate
+        optimal_rate = (original_rate, original_rev, original_rate, original_rev)
 
         for pct in price_adjustments:
             new_rate = round(original_rate * (1 + pct), 2)
-            resulting_rev = calculate_rev_at_price(new_rate, df_sim, model, sd)
+            resulting_rev = calculate_rev_at_price(new_rate, df_sim, model, i)
 
             if resulting_rev > optimal_rate[1]:
-                optimal_rate = (new_rate, resulting_rev)
+                optimal_rate = (new_rate, resulting_rev, original_rate, original_rev)
+
             else:
                 continue
         optimal_prices.append(optimal_rate)
     assert len(optimal_prices) == 31, AssertionError("Something went wrong.")
-    return optimal_prices
+    return df_pricing, optimal_prices
 
 
-def update_rates(df_sim, as_of_date):
+def add_rates(df_pricing, optimal_prices):
     """
-    Implements price recommendations from optimize_price and returns df_optimized.
+    Implements price recommendations from optimize_price and returns pricing_df
     """
-    optimal_prices = optimize_price(df_sim, as_of_date)
-    df_optimized = df_sim.copy()
-    new_prices = []
-    new_revs = []
+    new_rates = []
+    resulting_revs = []
+    original_rates = []
+    original_revs = []
+    for new_rate, resulting_rev, original_rate, original_rev in optimal_prices:
+        new_rates.append(new_rate)
+        resulting_revs.append(resulting_rev)
+        original_rates.append(original_rate)
+        original_revs.append(original_rev)
 
-    for rate, rev in optimal_prices:
-        new_prices.append(rate)
-        new_revs.append(rev)
+    df_pricing["OptimalRate"] = new_rates
+    df_pricing["TRN_RevPickupAtOptimal"] = resulting_revs
+    df_pricing["SellingRate"] = original_rates
+    df_pricing["TRN_ActualRevPickup"] = original_revs
 
-    df_optimized["OptimalRate"] = new_prices
-    df_optimized["RevAtOptimalRate"] = new_revs
+    return df_pricing
 
-    return df_optimized
+
+def summarize_model_results(model, y_test, preds):
+    """Writes model metrics to STDOUT."""
+    r2 = r2_score(y_test, preds)
+    mae = mean_absolute_error(y_test, preds)
+    mse = mean_absolute_error(y_test, preds)
+
+    print(
+        f"R² score on test set (stay dates Aug 1 - Aug 31, 2017):                        {r2}\n"
+    )
+    print(
+        f"MAE (Mean Absolute Error) score on test set (stay dates Aug 1 - Aug 31, 2017): {mae}\n"
+    )
+    print(
+        f"MSE (Mean Squared Error) score on test set (stay dates Aug 1 - Aug 31, 2017):  {mse}\n"
+    )
+    pass
+
+
+def recommend_pricing(df_sim, as_of_date):
+
+    print("Training Random Forest model to predict remaining transient demand...\n")
+    X_train, y_train, X_test, y_test = splits(df_sim, as_of_date)
+    df_pricing, model, preds = train_model(
+        df_sim, as_of_date, X_train, y_train, X_test, y_test
+    )
+
+    print("Model ready. Calculating optimal selling prices...\n")
+    df_pricing, optimal_prices = get_optimal_prices(df_pricing, as_of_date, model)
+    df_pricing = add_rates(df_pricing, optimal_prices)
+
+    print("Simulation ready.\n")
+    summarize_model_results(model, y_test, preds)
+    return df_pricing
