@@ -50,6 +50,7 @@ ___
 ___
 ## Navigating this Repository
 
+* Highlight `demand_model_selection`
 
 ___
 ## Modeling
