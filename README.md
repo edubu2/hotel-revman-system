@@ -50,7 +50,7 @@ ___
 ___
 ## Navigating this Repository
 
-* Highlight `demand_model_selection`
+* Highlight `demand_model_selection.ipynb`
 
 ___
 ## Modeling

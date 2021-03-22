@@ -2,36 +2,17 @@ import streamlit as st
 
 import numpy as np
 import pandas as pd
+from app_utils import user_display_cols, model_eval_cols
+
+aod = st.date_input("StayDate for Rate Change")
+rate_update = st.number_input("Enter new rate.")
 
 st.title("RightRates")
-df = pd.read_csv("../../data/h1_all_sims31.csv")
+df = pd.read_csv("../../data/results/h1_pricing.csv")
 
 mask = df.AsOfDate == "2017-08-01"
 
-highlight_cols = [
-    "AsOfDate",
-    "StayDate",
-    "DOW",
-    "RemSupply",
-    "CxlForecast",
-    "TRN_CxlForecast",
-    "RoomsOTB",
-    "TRN_RoomsOTB",
-    # "RoomsOTB_STLY",
-    # "TRN_RoomsOTB_STLY",
-    "Pace_RoomsOTB",
-    "Pace_TRN_RoomsOTB",
-    "SellingPrice",
-    "Pace_SellingPrice",
-    "ACTUAL_RoomsPickup_STLY",
-    "ACTUAL_TRN_RoomsPickup_STLY",
-    "TRN_RoomsOTB_STLY",
-    "Pace_TRN_RoomsOTB",
-    "Pace_TM30_TRN_RoomsPickup",
-    "Pace_TM15_TRN_RoomsPickup",
-    "Pace_TM05_TRN_RoomsPickup",
-]
-st.table(df[mask][highlight_cols])
+st.table(df[mask][user_display_cols])
 
 
 # plots

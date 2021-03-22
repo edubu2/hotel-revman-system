@@ -12,29 +12,33 @@ import datetime as dt
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
-from demand_features import rf_cols
+from demand_features import rf_cols, rf2_cols
 
 DATE_FMT = "%Y-%m-%d"
 
 
-def splits(df_sim, as_of_date):
+def splits(df_sim, as_of_date, hotel_num):
     """
     Splits df_sim into X_train, X_test, y_train, y_test.
     """
+    if hotel_num == 1:
+        features = rf_cols
+    else:
+        features = rf2_cols
     train_mask = df_sim["StayDate"] < as_of_date
     test_mask = df_sim["AsOfDate"] == as_of_date
     df_train = df_sim.loc[train_mask].copy()
     df_test = df_sim.loc[test_mask].copy()
 
-    X_train = df_train[rf_cols].copy()
-    X_test = df_test[rf_cols].copy()
+    X_train = df_train[features].copy()
+    X_test = df_test[features].copy()
     y_train = df_train["ACTUAL_TRN_RoomsPickup"].copy()
     y_test = df_test["ACTUAL_TRN_RoomsPickup"].copy()
 
     return X_train, y_train, X_test, y_test
 
 
-def train_model(df_sim, as_of_date, X_train, y_train, X_test, y_test):
+def train_model(df_sim, as_of_date, , hotel_numX_train, y_train, X_test, y_test):
 
     rfm = RandomForestRegressor(
         n_estimators=150,
@@ -202,8 +206,8 @@ def add_display_columns(df_pricing, capacity):
     )
 
     avg_price_change = round(df_pricing["RecommendedPriceChange"].mean(), 2)
-    total_rn_opp = round(df_pricing["ProjRN_Improvement"].sum(), 2)
-    total_rev_opp = round(df_pricing["ProjRevImprovement"].sum(), 2)
+    total_rn_opp = round(df_pricing["ProjRN_ChgAtOptimal"].sum(), 2)
+    total_rev_opp = round(df_pricing["ProjRevChgAtOptimal"].sum(), 2)
 
     print(
         f"Average recommended price change...                                            {avg_price_change}"

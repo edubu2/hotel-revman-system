@@ -7,3 +7,4 @@ code/pickle
 code/sims/
 data/otb-data
 ~$slides.pptx
+code/app/__pycache__/
