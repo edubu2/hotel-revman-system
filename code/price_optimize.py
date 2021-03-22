@@ -47,10 +47,13 @@ def train_model(df_sim, as_of_date, X_train, y_train, X_test, y_test):
     rfm.fit(X_train, y_train)
     preds = rfm.predict(X_test)
 
-    X_test["Proj_TRN_RoomsPickup"] = preds.round(0).astype(int)
-    df_sim["Proj_TRN_RoomsPickup"] = X_test["Proj_TRN_RoomsPickup"]
+    # add preds back to original
+    X_test["Proj_TRN_RemDemand"] = preds.round(0).astype(int)
+
     mask = df_sim["AsOfDate"] == as_of_date
     df_pricing = df_sim[mask].copy()
+    df_pricing["Proj_TRN_RemDemand"] = X_test["Proj_TRN_RemDemand"]
+
     return df_pricing, rfm, preds
 
 
@@ -60,9 +63,9 @@ def calculate_rev_at_price(price, df_pricing, model, df_index):
     df = df_pricing.copy()
     df.loc[df_index, "SellingPrice"] = price
     X = df.loc[df_index, rf_cols].to_numpy()
-    trn_rooms_to_book = model.predict([X])[0]
-    resulting_rev = round(trn_rooms_to_book * price, 2)
-    return resulting_rev
+    resulting_rn = model.predict([X])[0]
+    resulting_rev = round(resulting_rn * price, 2)
+    return resulting_rn, resulting_rev
 
 
 def get_optimal_prices(df_pricing, as_of_date, model):
@@ -73,31 +76,38 @@ def get_optimal_prices(df_pricing, as_of_date, model):
     """
     # optimize_price func
     indices = list(df_pricing.index)
-    price_adjustments = np.delete(np.arange(-0.25, 0.30, 0.05).round(2), 5)
+    price_adjustments = np.delete(
+        np.arange(-0.25, 0.30, 0.05).round(2), 5
+    )  # delete zero (already have it)
     optimal_prices = []
-    for i in indices:
-        #     sd = dt.datetime.strftime(stay_date, format=DATE_FMT)
+    for i in indices:  # loop thru stay dates & calculate stats @ original rate
         original_rate = round(df_pricing.loc[i, "SellingPrice"], 2)
         date_X = df_pricing.loc[i, rf_cols].to_numpy()
-        pred = model.predict([date_X])[0]
-        proj_rev_old_price = pred * original_rate
+        original_rn = model.predict([date_X])[0]
+        original_rev = original_rn * original_rate
         optimal_rate = (
-            original_rate,
-            proj_rev_old_price,
-            original_rate,
-            proj_rev_old_price,
+            original_rate,  # will be updated
+            original_rn,  # will be updated
+            original_rev,  # will be updated
+            original_rate,  # will remain
+            original_rn,  # will remain
+            original_rev,  # will remain
         )
 
-        for pct in price_adjustments:
+        for pct in price_adjustments:  # now take optimal rate (highest rev)
             new_rate = round(original_rate * (1 + pct), 2)
-            resulting_rev = calculate_rev_at_price(new_rate, df_pricing, model, i)
+            resulting_rn, resulting_rev = calculate_rev_at_price(
+                new_rate, df_pricing, model, i
+            )
 
             if resulting_rev > optimal_rate[1]:
                 optimal_rate = (
                     new_rate,
+                    resulting_rn,
                     resulting_rev,
                     original_rate,
-                    proj_rev_old_price,
+                    original_rn,
+                    original_rev,
                 )
 
             else:
@@ -112,27 +122,46 @@ def add_rates(df_pricing, optimal_prices):
     Implements price recommendations from optimize_price and returns pricing_df
     """
     new_rates = []
+    resulting_rns = []
     resulting_revs = []
     original_rates = []
-    proj_rev_old_prices = []
-    for new_rate, resulting_rev, original_rate, proj_rev_old_price in optimal_prices:
+    original_rns = []
+    original_revs = []
+    for (
+        new_rate,
+        resulting_rn,
+        resulting_rev,
+        original_rate,
+        original_rn,
+        original_rev,
+    ) in optimal_prices:
         new_rates.append(new_rate)
-        resulting_revs.append(resulting_rev)
+        resulting_rns.append(resulting_rn)
+        resulting_revs.append(round(resulting_rev, 2))
         original_rates.append(original_rate)
-        proj_rev_old_prices.append(round(proj_rev_old_price, 2))
+        original_rns.append(original_rn)
+        original_revs.append(round(original_rev, 2))
 
     df_pricing["OptimalRate"] = new_rates
-    df_pricing["TRN_RevPickupAtOptimal"] = resulting_revs
-    df_pricing["TRN_RevPickupAtOriginal"] = proj_rev_old_prices
+    df_pricing["TRN_rnPU_AtOptimal"] = resulting_rns
+    df_pricing["TRN_RevPU_AtOptimal"] = resulting_revs
+    df_pricing["TRN_rnPU_AtOriginal"] = original_rns
+    df_pricing["TRN_RN_ProjVsActual_OP"] = (
+        df_pricing["TRN_rnPU_AtOriginal"] - df_pricing["ACTUAL_TRN_RoomsPickup"]
+    )
+    df_pricing["TRN_RevPU_AtOriginal"] = original_revs
+    df_pricing["TRN_RevProjVsActual_OP"] = (
+        df_pricing["TRN_RevPU_AtOriginal"] - df_pricing["ACTUAL_TRN_RevPickup"]
+    )
 
     return df_pricing
 
 
 def summarize_model_results(model, y_test, preds):
     """Writes model metrics to STDOUT."""
-    r2 = r2_score(y_test, preds)
-    mae = mean_absolute_error(y_test, preds)
-    mse = mean_squared_error(y_test, preds)
+    r2 = round(r2_score(y_test, preds), 3)
+    mae = round(mean_absolute_error(y_test, preds), 3)
+    mse = round(mean_squared_error(y_test, preds), 3)
 
     print(
         f"R² score on test set (stay dates Aug 1 - Aug 31, 2017):                        {r2}"
@@ -146,27 +175,36 @@ def summarize_model_results(model, y_test, preds):
     pass
 
 
-def add_finishing_touches(df_pricing):
+def add_finishing_touches(df_pricing, capacity):
     """
     Adds the following columns:
         - RecommendedPriceChange (optimal rate variance to original rate)
         - RevOpportunity (projected revenue change at optimal rates)
         - DOW (day of week)
+        - Actual & Projected Occ
     """
     df_pricing["RecommendedPriceChange"] = (
         df_pricing["OptimalRate"] - df_pricing["SellingPrice"]
     )
-    avg_price_change = df_pricing["RecommendedPriceChange"].mean()
+    avg_price_change = round(df_pricing["RecommendedPriceChange"].mean(), 2)
     print(
-        f"Average recommended price change...                                  {avg_price_change}"
+        f"Average recommended price change...                                            {avg_price_change}"
+    )
+    df_pricing["ProjRN_Improvement"] = (
+        df_pricing["TRN_rnPU_AtOptimal"] - df_pricing["TRN_rnPU_AtOriginal"]
     )
 
-    df_pricing["ProjRevOpportunity"] = (
-        df_pricing["TRN_RevPickupAtOptimal"] - df_pricing["TRN_RevPickupAtOriginal"]
-    )
-    total_rev_opp = df_pricing["ProjRevOpportunity"].sum()
+    total_rn_opp = round(df_pricing["ProjRN_Improvement"].sum(), 2)
     print(
-        f"Estimated revenue growth from implementing price recommendations...  {total_rev_opp} "
+        f"Estimated RN (Roomnight) growth after implementing price recommendations...    {total_rn_opp}"
+    )
+
+    df_pricing["ProjRevImprovement"] = (
+        df_pricing["TRN_RevPU_AtOptimal"] - df_pricing["TRN_RevPU_AtOriginal"]
+    )
+    total_rev_opp = round(df_pricing["ProjRevImprovement"].sum(), 2)
+    print(
+        f"Estimated revenue growth after implementing price recommendations...           {total_rev_opp}"
     )
 
     df_pricing["DOW"] = (
@@ -175,10 +213,22 @@ def add_finishing_touches(df_pricing):
         .astype(str)
     )
 
+    # occupancy columns
+    df_pricing["ACTUAL_Occ"] = round(df_pricing["ACTUAL_RoomsSold"] / capacity, 1)
+    df_pricing["TotalProjRoomsSold"] = (
+        capacity - df_pricing["RemSupply"] + df_pricing["Proj_TRN_RemDemand"]
+    )
+    df_pricing["Proj_Occ"] = round(df_pricing["TotalProjRoomsSold"] / capacity, 2)
+
     return df_pricing.copy()
 
 
-def recommend_pricing(df_sim, as_of_date):
+def recommend_pricing(hotel_num, df_sim, as_of_date):
+    assert hotel_num in (1, 2), ValueError("hotel_num must be (int) 1 or 2.")
+    if hotel_num == 1:
+        capacity = 187
+    else:
+        capacity = 226
 
     print("Training Random Forest model to predict remaining transient demand...")
     X_train, y_train, X_test, y_test = splits(df_sim, as_of_date)
@@ -192,7 +242,7 @@ def recommend_pricing(df_sim, as_of_date):
     print("Calculating optimal selling prices...\n")
     df_pricing, optimal_prices = get_optimal_prices(df_pricing, as_of_date, model)
     df_pricing = add_rates(df_pricing, optimal_prices)
-    df_pricing = add_finishing_touches(df_pricing)
+    df_pricing = add_finishing_touches(df_pricing, capacity)
 
     print("Simulation ready.\n")
 
