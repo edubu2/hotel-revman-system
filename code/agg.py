@@ -94,7 +94,7 @@ def extract_features(df_sim, df_dbd, capacity):
             & (df_sim.Sun == 0)
             & (df_sim.Thu == 0)
         )
-        days = ["Mon", "Tue", "Wed", "Thu", "Sat"]
+        days = ["Mon", "Tue", "Wed", "Thu", "Sat", "Sun"]
         for d in days:
             df_sim[d] = df_sim[d].astype("bool")
         df_sim["WE"] = is_weekend
@@ -121,6 +121,9 @@ def extract_features(df_sim, df_dbd, capacity):
         # first need ADR OTB
         df_sim["ADR_OTB"] = round(df_sim["RevOTB"] / df_sim["RoomsOTB"], 2)
         df_sim["TRN_ADR_OTB"] = round(df_sim["TRN_RevOTB"] / df_sim["TRN_RoomsOTB"], 2)
+        df_sim["TRNP_ADR_OTB"] = round(
+            df_sim["TRNP_RevOTB"] / df_sim["TRNP_RoomsOTB"], 2
+        )
 
         ly_new_cols = ["LYA_" + col for col in ly_cols_agg]
         df_sim[ly_new_cols] = df_sim[["STLY_StayDate"]].apply(
@@ -137,6 +140,9 @@ def extract_features(df_sim, df_dbd, capacity):
             "TRN_RoomsSold",
             "TRN_ADR",
             "TRN_RoomRev",
+            "TRNP_RoomsSold",
+            "TRNP_ADR",
+            "TRNP_RoomRev",
             "NumCancels",
         ]
 
@@ -166,6 +172,16 @@ def extract_features(df_sim, df_dbd, capacity):
             df_sim["ACTUAL_TRN_RoomRev"] - df_sim["TRN_RevOTB"], 2
         )
 
+        df_sim["ACTUAL_TRNP_RoomsPickup"] = (
+            df_sim["ACTUAL_TRNP_RoomsSold"] - df_sim["TRNP_RoomsOTB"]
+        )
+        df_sim["ACTUAL_TRNP_ADR_Pickup"] = (
+            df_sim["ACTUAL_TRNP_ADR"] - df_sim["TRNP_ADR_OTB"]
+        )
+        df_sim["ACTUAL_TRNP_RevPickup"] = round(
+            df_sim["ACTUAL_TRNP_RoomRev"] - df_sim["TRNP_RevOTB"], 2
+        )
+
         df_sim.fillna(0, inplace=True)
 
         return df_sim
@@ -178,7 +194,7 @@ def extract_features(df_sim, df_dbd, capacity):
 
         # loop thru tminus windows (for total hotel & TRN) & count bookings
         tms = ["TM30_", "TM15_", "TM05_"]
-        segs = ["", "TRN_"]  # "" for total hotel
+        segs = ["", "TRN_", "TRNP_"]  # "" for total hotel
 
         for tm in tms:
             for seg in segs:
@@ -303,4 +319,4 @@ def prep_demand_features(hotel_num, prelim_csv_out=None, results_csv_out=None):
     if results_csv_out is not None:
         df_sim.to_csv(results_csv_out)
         print(f"'{results_csv_out}' file saved.")
-    return df_sim
+    return df_sim.dropna()

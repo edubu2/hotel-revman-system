@@ -175,42 +175,44 @@ def summarize_model_results(model, y_test, preds):
     pass
 
 
-def add_finishing_touches(df_pricing, capacity):
+def add_display_columns(df_pricing, capacity):
     """
-    Adds the following columns:
+    Adds the following informative columns that will be displayed to app users:
         - RecommendedPriceChange (optimal rate variance to original rate)
-        - RevOpportunity (projected revenue change at optimal rates)
+        - ProjChgAtOptimal (projected RN & Rev change at optimal rates)
         - DOW (day of week)
         - Actual & Projected Occ
     """
     df_pricing["RecommendedPriceChange"] = (
         df_pricing["OptimalRate"] - df_pricing["SellingPrice"]
     )
-    avg_price_change = round(df_pricing["RecommendedPriceChange"].mean(), 2)
-    print(
-        f"Average recommended price change...                                            {avg_price_change}"
-    )
-    df_pricing["ProjRN_Improvement"] = (
+
+    df_pricing["ProjRN_ChgAtOptimal"] = (
         df_pricing["TRN_rnPU_AtOptimal"] - df_pricing["TRN_rnPU_AtOriginal"]
     )
 
-    total_rn_opp = round(df_pricing["ProjRN_Improvement"].sum(), 2)
-    print(
-        f"Estimated RN (Roomnight) growth after implementing price recommendations...    {total_rn_opp}"
-    )
-
-    df_pricing["ProjRevImprovement"] = (
+    df_pricing["ProjRevChgAtOptimal"] = (
         df_pricing["TRN_RevPU_AtOptimal"] - df_pricing["TRN_RevPU_AtOriginal"]
-    )
-    total_rev_opp = round(df_pricing["ProjRevImprovement"].sum(), 2)
-    print(
-        f"Estimated revenue growth after implementing price recommendations...           {total_rev_opp}"
     )
 
     df_pricing["DOW"] = (
         df_pricing["StayDate"]
         .map(lambda x: dt.datetime.strftime(x, format="%a"))
         .astype(str)
+    )
+
+    avg_price_change = round(df_pricing["RecommendedPriceChange"].mean(), 2)
+    total_rn_opp = round(df_pricing["ProjRN_Improvement"].sum(), 2)
+    total_rev_opp = round(df_pricing["ProjRevImprovement"].sum(), 2)
+
+    print(
+        f"Average recommended price change...                                            {avg_price_change}"
+    )
+    print(
+        f"Estimated RN (Roomnight) growth after implementing price recommendations...    {total_rn_opp}"
+    )
+    print(
+        f"Estimated revenue growth after implementing price recommendations...           {total_rev_opp}"
     )
 
     # occupancy columns
@@ -242,7 +244,7 @@ def recommend_pricing(hotel_num, df_sim, as_of_date):
     print("Calculating optimal selling prices...\n")
     df_pricing, optimal_prices = get_optimal_prices(df_pricing, as_of_date, model)
     df_pricing = add_rates(df_pricing, optimal_prices)
-    df_pricing = add_finishing_touches(df_pricing, capacity)
+    df_pricing = add_display_columns(df_pricing, capacity)
 
     print("Simulation ready.\n")
 

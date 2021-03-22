@@ -3,6 +3,8 @@ display_cols = [
     "DOW",
     "SellingPrice",
     "OptimalPrice",
+    "ProjRN_ChgAtOptimal",
+    "ProjRevChgAtOptimal",
     "ProjOcc",
     "RoomsOTB",
     "TRN_RoomsOTB",
