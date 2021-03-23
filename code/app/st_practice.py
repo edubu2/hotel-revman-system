@@ -2,17 +2,20 @@ import streamlit as st
 
 import numpy as np
 import pandas as pd
-from app_utils import user_display_cols, model_eval_cols
+from app_utils import user_display_cols, model_eval_cols, renamed_user_cols
+from app_funcs import get_pricing
 
-aod = st.date_input("StayDate for Rate Change")
-rate_update = st.number_input("Enter new rate.")
+# gather data that will be displayed to user
+df_display = get_pricing(1, user_display_cols)
+df_eval = get_pricing(1, model_eval_cols)
 
-st.title("RightRates")
-df = pd.read_csv("../../data/results/h1_pricing.csv")
+# add title & update rates section
+st.title("RevCast")
+# show users resulting table
+st.write(df_display)
 
-mask = df.AsOfDate == "2017-08-01"
-
-st.table(df[mask][user_display_cols])
+st.header("Evaluating Model Performance")
+st.write(df_eval)
 
 
 # plots
