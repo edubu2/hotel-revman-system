@@ -15,7 +15,6 @@ def get_pricing(hotel_num, cols):
     )
     df.index = pd.DatetimeIndex(df.StayDate).date
     df = df.sort_index()
-    df["ProjOcc"] = (capacity - df["RemSupply"] + df["TRN_rnPU_AtOriginal"]) / capacity
     df["LYA_Occ"] = df["LYA_RoomsSold"] / capacity
     df.drop(columns="Unnamed: 0", inplace=True)
     df = df[cols]
