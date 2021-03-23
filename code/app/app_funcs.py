@@ -18,6 +18,5 @@ def get_pricing(hotel_num, cols):
     df["LYA_Occ"] = df["LYA_RoomsSold"] / capacity
     df.drop(columns="Unnamed: 0", inplace=True)
     df = df[cols]
-    df.rename(columns=renamed_user_cols, inplace=True)
 
     return df
