@@ -17,14 +17,11 @@ from demand_features import rf_cols, rf2_cols
 DATE_FMT = "%Y-%m-%d"
 
 
-def splits(df_sim, as_of_date, hotel_num):
+def splits(df_sim, as_of_date, features):
     """
     Splits df_sim into X_train, X_test, y_train, y_test.
     """
-    if hotel_num == 1:
-        features = rf_cols
-    else:
-        features = rf2_cols
+
     train_mask = df_sim["StayDate"] < as_of_date
     test_mask = df_sim["AsOfDate"] == as_of_date
     df_train = df_sim.loc[train_mask].copy()
@@ -38,18 +35,25 @@ def splits(df_sim, as_of_date, hotel_num):
     return X_train, y_train, X_test, y_test
 
 
-def train_model(df_sim, as_of_date, , hotel_numX_train, y_train, X_test, y_test):
+def train_model(
+    df_sim, as_of_date, hotel_num, features, X_train, y_train, X_test, y_test
+):
 
-    rfm = RandomForestRegressor(
-        n_estimators=150,
-        max_depth=48,
-        min_samples_split=2,
-        bootstrap=True,
-        n_jobs=-1,
-        random_state=20,
-    )
-    rfm.fit(X_train, y_train)
-    preds = rfm.predict(X_test)
+    if hotel_num == 1:
+        rfm = RandomForestRegressor(  # max_depth=None
+            n_estimators=550,
+            n_jobs=-1,
+            random_state=20,
+        )
+        rfm.fit(X_train, y_train)
+        preds = rfm.predict(X_test)
+    else:
+        # hotel 2
+        rfm = RandomForestRegressor(
+            n_estimators=350, max_depth=25, n_jobs=-1, random_state=20
+        )
+        rfm.fit(X_train, y_train)
+        preds = rfm.predict(X_test)
 
     # add preds back to original
     X_test["Proj_TRN_RemDemand"] = preds.round(0).astype(int)
@@ -61,18 +65,18 @@ def train_model(df_sim, as_of_date, , hotel_numX_train, y_train, X_test, y_test)
     return df_pricing, rfm, preds
 
 
-def calculate_rev_at_price(price, df_pricing, model, df_index):
+def calculate_rev_at_price(price, df_pricing, model, df_index, features):
     """
     Calculates transient room revenue at predicted selling prices."""
     df = df_pricing.copy()
     df.loc[df_index, "SellingPrice"] = price
-    X = df.loc[df_index, rf_cols].to_numpy()
+    X = df.loc[df_index, features].to_numpy()
     resulting_rn = model.predict([X])[0]
     resulting_rev = round(resulting_rn * price, 2)
     return resulting_rn, resulting_rev
 
 
-def get_optimal_prices(df_pricing, as_of_date, model):
+def get_optimal_prices(df_pricing, as_of_date, model, features):
     """
     Models demand at current prices & stores resulting TRN RoomsBooked & Rev.
 
@@ -86,7 +90,7 @@ def get_optimal_prices(df_pricing, as_of_date, model):
     optimal_prices = []
     for i in indices:  # loop thru stay dates & calculate stats @ original rate
         original_rate = round(df_pricing.loc[i, "SellingPrice"], 2)
-        date_X = df_pricing.loc[i, rf_cols].to_numpy()
+        date_X = df_pricing.loc[i, features].to_numpy()
         original_rn = model.predict([date_X])[0]
         original_rev = original_rn * original_rate
         optimal_rate = (
@@ -101,7 +105,7 @@ def get_optimal_prices(df_pricing, as_of_date, model):
         for pct in price_adjustments:  # now take optimal rate (highest rev)
             new_rate = round(original_rate * (1 + pct), 2)
             resulting_rn, resulting_rev = calculate_rev_at_price(
-                new_rate, df_pricing, model, i
+                new_rate, df_pricing, model, i, features
             )
 
             if resulting_rev > optimal_rate[1]:
@@ -224,7 +228,7 @@ def add_display_columns(df_pricing, capacity):
     df_pricing["TotalProjRoomsSold"] = (
         capacity - df_pricing["RemSupply"] + df_pricing["Proj_TRN_RemDemand"]
     )
-    df_pricing["Proj_Occ"] = round(df_pricing["TotalProjRoomsSold"] / capacity, 2)
+    df_pricing["ProjOcc"] = round(df_pricing["TotalProjRoomsSold"] / capacity, 2)
 
     return df_pricing.copy()
 
@@ -233,20 +237,24 @@ def recommend_pricing(hotel_num, df_sim, as_of_date):
     assert hotel_num in (1, 2), ValueError("hotel_num must be (int) 1 or 2.")
     if hotel_num == 1:
         capacity = 187
+        features = rf_cols
     else:
         capacity = 226
+        features = rf2_cols
 
     print("Training Random Forest model to predict remaining transient demand...")
-    X_train, y_train, X_test, y_test = splits(df_sim, as_of_date)
+    X_train, y_train, X_test, y_test = splits(df_sim, as_of_date, features)
     df_pricing, model, preds = train_model(
-        df_sim, as_of_date, X_train, y_train, X_test, y_test
+        df_sim, as_of_date, hotel_num, features, X_train, y_train, X_test, y_test
     )
 
     print("Model ready.\n")
     summarize_model_results(model, y_test, preds)
 
     print("Calculating optimal selling prices...\n")
-    df_pricing, optimal_prices = get_optimal_prices(df_pricing, as_of_date, model)
+    df_pricing, optimal_prices = get_optimal_prices(
+        df_pricing, as_of_date, model, features
+    )
     df_pricing = add_rates(df_pricing, optimal_prices)
     df_pricing = add_display_columns(df_pricing, capacity)
 
