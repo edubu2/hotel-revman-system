@@ -1,15 +1,10 @@
 user_display_cols = [
-    "StayDate",
     "DOW",
+    "ProjOcc",
     "SellingPrice",
-    "OptimalPrice",
     "Proj_TRN_RemDemand",
     "OTB_GapToLYA_RoomsSold",
     "OTB_GapToLYA_TRN_RoomsSold",
-    "RecommendedPriceChange",
-    "ProjRN_ChgAtOptimal",
-    "ProjRevChgAtOptimal",
-    "ProjOcc",
     "RoomsOTB",
     "TRN_RoomsOTB",
     "Pace_RoomsOTB",
@@ -20,11 +15,25 @@ user_display_cols = [
     "Pace_TM05_TRN_RoomsPickup",
 ]
 
+renamed_user_cols = {
+    "DOW": "Day of Week",
+    "SellingPrice": "Room Rate",
+    "Proj_TRN_RemDemand": "Projected Rem Trn. Demand",
+    "OTB_GapToLYA_TRN_RoomsSold": "LYA Rem Trn Demand",
+    "RoomsOTB": "All Rooms OTB",
+    "TRN_RoomsOTB": "Trn Rooms OTB",
+    "Pace_RoomsOTB": "All Rms Pace vs STLY",
+    "Pace_TRN_RoomsOTB": "Trn Rms Pace vs STLY",
+    "LYA_Occ": "LYA Occ",
+    "Pace_TM30_TRN_RoomsPickup": "L30 Trn Pickup Pace vs STLY",
+    "Pace_TM15_TRN_RoomsPickup": "L15 Trn Pickup Pace vs STLY",
+    "Pace_TM05_TRN_RoomsPickup": "L5 Trn Pickup Pace vs STLY",
+}
+
 model_eval_cols = [
-    "StayDate",
     "DOW",
     "SellingPrice",
-    "OptimalPrice",
+    "OptimalRate",
     "RecommendedPriceChange",
     "ProjRN_ChgAtOptimal",
     "ACTUAL_TRN_RoomsPickup",
@@ -35,5 +44,4 @@ model_eval_cols = [
     "TRN_RoomsOTB",
     "Pace_RoomsOTB",
     "Pace_TRN_RoomsOTB",
-    "LYA_Occ",
 ]
