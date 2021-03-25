@@ -1,6 +1,6 @@
 # Building a Hotel Revenue Management (Rate Recommender) System from Scratch
 
-![St. Regis Deer Valley (Park City, UT)](http://localhost:8888/view/etc/srdv.jpg)
+![St. Regis Deer Valley (Park City, UT)](https://github.com/edubu2/hotel-revman-system/blob/main/etc/srdv.jpg)
 (IN PROGRESS)
 
 By Elliot Wilens, Data Scientist and Hotel Revenue Manager
