@@ -81,7 +81,7 @@ def save_sim_records(
     pass
 
 
-def main(h1_dbd, h1_res, h2_dbd, h2_res):
+def save_historical_OTB(h1_dbd, h1_res, h2_dbd, h2_res):
     print("Starting hotel 1...")
     save_sim_records(h1_dbd, h1_res, 1)
     print(
@@ -96,4 +96,4 @@ def main(h1_dbd, h1_res, h2_dbd, h2_res):
 
 
 if __name__ == "__main__":
-    main(H1_DBD, H1_RES, H2_DBD, H2_RES)
+    save_historical_OTB(H1_DBD, H1_RES, H2_DBD, H2_RES)

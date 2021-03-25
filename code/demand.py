@@ -59,16 +59,16 @@ def train_model(
     X_test["Proj_TRN_RemDemand"] = preds.round(0).astype(int)
 
     mask = df_sim["AsOfDate"] == as_of_date
-    df_pricing = df_sim[mask].copy()
-    df_pricing["Proj_TRN_RemDemand"] = X_test["Proj_TRN_RemDemand"]
+    df_demand = df_sim[mask].copy()
+    df_demand["Proj_TRN_RemDemand"] = X_test["Proj_TRN_RemDemand"]
 
-    return df_pricing, rfm, preds
+    return df_demand, rfm, preds
 
 
-def calculate_rev_at_price(price, df_pricing, model, df_index, features):
+def calculate_rev_at_price(price, df_demand, model, df_index, features):
     """
     Calculates transient room revenue at predicted selling prices."""
-    df = df_pricing.copy()
+    df = df_demand.copy()
     df.loc[df_index, "SellingPrice"] = price
     X = df.loc[df_index, features].to_numpy()
     resulting_rn = model.predict([X])[0]
@@ -76,21 +76,21 @@ def calculate_rev_at_price(price, df_pricing, model, df_index, features):
     return resulting_rn, resulting_rev
 
 
-def get_optimal_prices(df_pricing, as_of_date, model, features):
+def get_optimal_prices(df_demand, as_of_date, model, features):
     """
     Models demand at current prices & stores resulting TRN RoomsBooked & Rev.
 
     Then adjusts prices by 5% increments in both directions, up to 25%.
     """
     # optimize_price func
-    indices = list(df_pricing.index)
+    indices = list(df_demand.index)
     price_adjustments = np.delete(
         np.arange(-0.25, 0.30, 0.05).round(2), 5
     )  # delete zero (already have it)
     optimal_prices = []
     for i in indices:  # loop thru stay dates & calculate stats @ original rate
-        original_rate = round(df_pricing.loc[i, "SellingPrice"], 2)
-        date_X = df_pricing.loc[i, features].to_numpy()
+        original_rate = round(df_demand.loc[i, "SellingPrice"], 2)
+        date_X = df_demand.loc[i, features].to_numpy()
         original_rn = model.predict([date_X])[0]
         original_rev = original_rn * original_rate
         optimal_rate = (
@@ -105,7 +105,7 @@ def get_optimal_prices(df_pricing, as_of_date, model, features):
         for pct in price_adjustments:  # now take optimal rate (highest rev)
             new_rate = round(original_rate * (1 + pct), 2)
             resulting_rn, resulting_rev = calculate_rev_at_price(
-                new_rate, df_pricing, model, i, features
+                new_rate, df_demand, model, i, features
             )
 
             if resulting_rev > optimal_rate[1]:
@@ -122,10 +122,10 @@ def get_optimal_prices(df_pricing, as_of_date, model, features):
                 continue
         optimal_prices.append(optimal_rate)
     assert len(optimal_prices) == 31, AssertionError("Something went wrong.")
-    return df_pricing, optimal_prices
+    return df_demand, optimal_prices
 
 
-def add_rates(df_pricing, optimal_prices):
+def add_rates(df_demand, optimal_prices):
     """
     Implements price recommendations from optimize_price and returns pricing_df
     """
@@ -150,19 +150,19 @@ def add_rates(df_pricing, optimal_prices):
         original_rns.append(original_rn)
         original_revs.append(round(original_rev, 2))
 
-    df_pricing["OptimalRate"] = new_rates
-    df_pricing["TRN_rnPU_AtOptimal"] = resulting_rns
-    df_pricing["TRN_RevPU_AtOptimal"] = resulting_revs
-    df_pricing["TRN_rnPU_AtOriginal"] = original_rns
-    df_pricing["TRN_RN_ProjVsActual_OP"] = (
-        df_pricing["TRN_rnPU_AtOriginal"] - df_pricing["ACTUAL_TRN_RoomsPickup"]
+    df_demand["OptimalRate"] = new_rates
+    df_demand["TRN_rnPU_AtOptimal"] = resulting_rns
+    df_demand["TRN_RevPU_AtOptimal"] = resulting_revs
+    df_demand["TRN_rnPU_AtOriginal"] = original_rns
+    df_demand["TRN_RN_ProjVsActual_OP"] = (
+        df_demand["TRN_rnPU_AtOriginal"] - df_demand["ACTUAL_TRN_RoomsPickup"]
     )
-    df_pricing["TRN_RevPU_AtOriginal"] = original_revs
-    df_pricing["TRN_RevProjVsActual_OP"] = (
-        df_pricing["TRN_RevPU_AtOriginal"] - df_pricing["ACTUAL_TRN_RevPickup"]
+    df_demand["TRN_RevPU_AtOriginal"] = original_revs
+    df_demand["TRN_RevProjVsActual_OP"] = (
+        df_demand["TRN_RevPU_AtOriginal"] - df_demand["ACTUAL_TRN_RevPickup"]
     )
 
-    return df_pricing
+    return df_demand
 
 
 def summarize_model_results(model, y_test, preds):
@@ -183,7 +183,7 @@ def summarize_model_results(model, y_test, preds):
     pass
 
 
-def add_display_columns(df_pricing, capacity):
+def add_display_columns(df_demand, capacity):
     """
     Adds the following informative columns that will be displayed to app users:
         - RecommendedPriceChange (optimal rate variance to original rate)
@@ -191,27 +191,27 @@ def add_display_columns(df_pricing, capacity):
         - DOW (day of week)
         - Actual & Projected Occ
     """
-    df_pricing["RecommendedPriceChange"] = (
-        df_pricing["OptimalRate"] - df_pricing["SellingPrice"]
+    df_demand["RecommendedPriceChange"] = (
+        df_demand["OptimalRate"] - df_demand["SellingPrice"]
     )
 
-    df_pricing["ProjRN_ChgAtOptimal"] = (
-        df_pricing["TRN_rnPU_AtOptimal"] - df_pricing["TRN_rnPU_AtOriginal"]
+    df_demand["ProjRN_ChgAtOptimal"] = (
+        df_demand["TRN_rnPU_AtOptimal"] - df_demand["TRN_rnPU_AtOriginal"]
     )
 
-    df_pricing["ProjRevChgAtOptimal"] = (
-        df_pricing["TRN_RevPU_AtOptimal"] - df_pricing["TRN_RevPU_AtOriginal"]
+    df_demand["ProjRevChgAtOptimal"] = (
+        df_demand["TRN_RevPU_AtOptimal"] - df_demand["TRN_RevPU_AtOriginal"]
     )
 
-    df_pricing["DOW"] = (
-        df_pricing["StayDate"]
+    df_demand["DOW"] = (
+        df_demand["StayDate"]
         .map(lambda x: dt.datetime.strftime(x, format="%a"))
         .astype(str)
     )
 
-    avg_price_change = round(df_pricing["RecommendedPriceChange"].mean(), 2)
-    total_rn_opp = round(df_pricing["ProjRN_ChgAtOptimal"].sum(), 2)
-    total_rev_opp = round(df_pricing["ProjRevChgAtOptimal"].sum(), 2)
+    avg_price_change = round(df_demand["RecommendedPriceChange"].mean(), 2)
+    total_rn_opp = round(df_demand["ProjRN_ChgAtOptimal"].sum(), 2)
+    total_rev_opp = round(df_demand["ProjRevChgAtOptimal"].sum(), 2)
 
     print(
         f"Average recommended price change...                                            {avg_price_change}"
@@ -224,40 +224,41 @@ def add_display_columns(df_pricing, capacity):
     )
 
     # occupancy columns
-    df_pricing["ACTUAL_Occ"] = round(df_pricing["ACTUAL_RoomsSold"] / capacity, 1)
-    df_pricing["TotalProjRoomsSold"] = (
-        capacity - df_pricing["RemSupply"] + df_pricing["Proj_TRN_RemDemand"]
+    df_demand["ACTUAL_Occ"] = round(df_demand["ACTUAL_RoomsSold"] / capacity, 1)
+    df_demand["TotalProjRoomsSold"] = (
+        capacity - df_demand["RemSupply"] + df_demand["Proj_TRN_RemDemand"]
     )
-    df_pricing["ProjOcc"] = round(df_pricing["TotalProjRoomsSold"] / capacity, 2)
+    df_demand["ProjOcc"] = round(df_demand["TotalProjRoomsSold"] / capacity, 2)
 
-    return df_pricing.copy()
+    return df_demand.copy()
 
 
-def recommend_pricing(hotel_num, df_sim, as_of_date):
+def model_demand(hotel_num, df_sim, as_of_date):
+    """
+    This function models demand for each date in df_sim. df_sim is the output of agg.py.
+    """
     assert hotel_num in (1, 2), ValueError("hotel_num must be (int) 1 or 2.")
     if hotel_num == 1:
         capacity = 187
-        features = rf_cols
     else:
         capacity = 226
-        features = rf2_cols
 
     print("Training Random Forest model to predict remaining transient demand...")
-    X_train, y_train, X_test, y_test = splits(df_sim, as_of_date, features)
-    df_pricing, model, preds = train_model(
-        df_sim, as_of_date, hotel_num, features, X_train, y_train, X_test, y_test
+    X_train, y_train, X_test, y_test = splits(df_sim, as_of_date, rf_cols)
+    df_demand, model, preds = train_model(
+        df_sim, as_of_date, hotel_num, rf_cols, X_train, y_train, X_test, y_test
     )
 
     print("Model ready.\n")
     summarize_model_results(model, y_test, preds)
 
     print("Calculating optimal selling prices...\n")
-    df_pricing, optimal_prices = get_optimal_prices(
-        df_pricing, as_of_date, model, features
+    df_demand, optimal_prices = get_optimal_prices(
+        df_demand, as_of_date, model, rf_cols
     )
-    df_pricing = add_rates(df_pricing, optimal_prices)
-    df_pricing = add_display_columns(df_pricing, capacity)
+    df_demand = add_rates(df_demand, optimal_prices)
+    df_demand = add_display_columns(df_demand, capacity)
 
     print("Simulation ready.\n")
 
-    return df_pricing
+    return df_demand
