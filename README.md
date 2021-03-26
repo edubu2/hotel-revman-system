@@ -1,7 +1,6 @@
 # Building a Hotel Revenue Management (Rate Recommender) System from Scratch
 
 ![St. Regis Deer Valley (Park City, UT)](https://github.com/edubu2/hotel-revman-system/blob/main/etc/srdv.jpg)
-(IN PROGRESS)
 
 By Elliot Wilens, Data Scientist and Hotel Revenue Manager
 
@@ -9,7 +8,7 @@ Metis Data Science Bootcamp | Project 5: Passion Project
 
 Project Duration: 3 weeks
 
-Blog post here: 
+Blog post [here](https://edubu2.medium.com/creating-a-hotel-revenue-management-system-from-scratch-6f7a5abc6dee)
 
 ___
 ## Introduction
